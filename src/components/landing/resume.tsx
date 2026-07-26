@@ -9,11 +9,11 @@ export function Resume() {
   return (
     <section
       id="resume"
-      className="mx-auto max-w-7xl  bg-[#fbfbfd] py-16 sm:py-20 lg:py-24"
+      className="mx-auto max-w-7xl px-6 lg:px-8 bg-[#fbfbfd] py-16 sm:py-20 lg:py-24"
     >
-      <div className="grid grid-cols-1 lg:grid-cols-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 items-center gap-12">
         {/* Left Side */}
-        <div className="p-10">
+        <div>
           <p className="text-sm font-bold uppercase text-indigo-500">
             Career Development
           </p>
@@ -99,7 +99,7 @@ export function Resume() {
         </div>
 
         {/* Right Side */}
-        <div className="mt-16 lg:mt-0 w-full max-w-2xl">
+        <div className="mt-16 lg:mt-0 w-full max-w-2xl mx-auto">
           <div className="h-140 rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl" />
           {/* image placeholder */}
         </div>
