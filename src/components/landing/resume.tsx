@@ -2,16 +2,17 @@ import {
   FileText,
   WandSparkles,
   CircleGauge,
-  BrainCircuit,
+  Orbit,
 } from "lucide-react";
 
 export function Resume() {
   return (
     <section
       id="resume"
-      className="mx-auto max-w-7xl bg-[#fbfbfd] py-16 sm:py-20 lg:py-24"
+      className="mx-auto max-w-7xl  bg-[#fbfbfd] py-16 sm:py-20 lg:py-24"
     >
-      <div className="grid lg:grid-cols-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2">
+        {/* Left Side */}
         <div className="p-10">
           <p className="text-sm font-bold uppercase text-indigo-500">
             Career Development
@@ -81,7 +82,7 @@ export function Resume() {
             {/* Skill Gap */}
             <div className="flex gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
-                <BrainCircuit className="h-6 w-6" />
+                <Orbit className="h-6 w-6" />
               </div>
 
               <div>
@@ -95,6 +96,12 @@ export function Resume() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Right Side */}
+        <div className="mt-16 lg:mt-0 w-full max-w-2xl">
+          <div className="h-140 rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl" />
+          {/* image placeholder */}
         </div>
       </div>
     </section>
