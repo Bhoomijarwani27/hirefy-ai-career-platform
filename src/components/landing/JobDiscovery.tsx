@@ -8,8 +8,9 @@ import {
 export function JobDiscovery() {
     return (
         <section
-            className="mx-auto max-w-7xl px-6 lg:px-8 bg-[#fbfbfd] py-16 sm:py-20 lg:py-24"
+            className="px-6 lg:px-8 bg-[#fbfbfd] py-16 sm:py-20 lg:py-24"
         >
+          <div className="mx-auto max-w-7xl">
             <div className="grid grid-cols-1 lg:grid-cols-2 items-center gap-12">
                 {/* Dashboard */}
               <div className="order-2 lg:order-1 mt-16 lg:mt-0 w-full max-w-2xl">
@@ -104,7 +105,7 @@ export function JobDiscovery() {
           </div>
             </div>
             </div>
-          
+          </div>
        </section>
     );
 }
