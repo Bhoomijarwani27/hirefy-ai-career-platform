@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+"use client"
 import Link from "next/link";
 
 export default function Navbar() {
