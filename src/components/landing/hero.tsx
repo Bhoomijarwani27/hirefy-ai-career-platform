@@ -34,14 +34,13 @@ export function Hero() {
 
       <div className="relative z-10 container mx-auto px-6">
         <div className="mx-auto flex max-w-5xl flex-col items-center pt-28 text-center">
-          <h1 className="max-w-4xl text-5xl font-extrabold tracking-tight text-slate-950 md:text-6xl lg:text-7xl">
+          <h1 className="max-w-4xl text-4xl font-extrabold tracking-tight text-slate-950 md:text-6xl lg:text-7xl">
             Get hired faster.
             <br />
             <span className="bg-linear-to-r from-indigo-600 via-sky-500 to-fuchsia-500 bg-clip-text text-transparent">
               Hire smarter.
             </span>
           </h1>
-
           <p className="mt-8 max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
             The AI-powered career platform that helps you build stronger
             resumes, improve ATS scores, discover better job opportunities,
