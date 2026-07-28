@@ -17,9 +17,11 @@ export function Platform() {
                         One platform
                     </p>
                     <h2 className="mt-5 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-                        Build careers. Hire
+                        Build careers. 
                         <br/>
-                         smarter.All in one place.
+                        Hire smarter.
+                         <br/>
+                        All in one place.
                         </h2>
                     <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-600 sm:text-xl sm:leading-9">
                         Hirefy unifies the tools job seekers and companies actually need — from AI 

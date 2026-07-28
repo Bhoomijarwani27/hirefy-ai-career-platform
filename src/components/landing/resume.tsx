@@ -20,7 +20,7 @@ export function Resume() {
           </p>
 
           <h1 className="mt-4 text-3xl font-bold sm:text-5xl md:text-4xl lg:text-5xl">
-            A resume that actually gets you interview.
+            A resume that actually gets you interviews.
           </h1>
 
           <p className="mt-6 text-base text-gray-700 sm:text-xl">
@@ -71,11 +71,11 @@ export function Resume() {
 
               <div>
                 <h6 className="text-lg font-bold text-slate-950">
-                  ATS Score
+                  Resume Match Score
                 </h6>
 
                 <p className="mt-1 text-base text-slate-600">
-                  Test against 40+ systems.
+                  See how well your resume matches a specific job role.
                 </p>
               </div>
             </div>

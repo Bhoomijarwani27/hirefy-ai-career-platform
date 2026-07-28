@@ -1,6 +1,13 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
 export default function Navbar() {
+  const closeMenu = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const details = e.currentTarget.closest("details") as HTMLDetailsElement;
+  if (details) details.open = false;
+};
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -11,16 +18,16 @@ export default function Navbar() {
           </Link>
 
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-700 md:flex">
-            <Link href="#platform" className="hover:text-slate-950">
+            <Link href="#platform"  className="hover:text-slate-950">
               Platform
             </Link>
-            <Link href="#features" className="hover:text-slate-950">
+            <Link href="#features"   className="hover:text-slate-950">
               Features
             </Link>
-            <Link href="#for-companies" className="hover:text-slate-950">
+            <Link href="#for-companies"className="hover:text-slate-950">
               For Companies
             </Link>
-            <Link href="#faq" className="hover:text-slate-950">
+            <Link href="#faq"className="hover:text-slate-950">
               FAQ
             </Link>
           </nav>
@@ -42,7 +49,6 @@ export default function Navbar() {
               </span>
             </Link>
           </div>
-
           <details className="group static md:hidden">
             <summary className="flex h-10 w-10 list-none items-center justify-center rounded-full border border-gray-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50 [::-webkit-details-marker]:hidden">
               <span className="text-2xl leading-none">≡</span>
@@ -50,16 +56,16 @@ export default function Navbar() {
 
             <div className="absolute left-0 top-16  w-screen bg-white p-4 ">
               <nav className="flex flex-col text-sm font-medium text-slate-700">
-                <Link href="#platform" className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link href="#platform"   onClick={closeMenu} className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
                   Platform
                 </Link>
-                <Link href="#features" className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link href="#features"    onClick={closeMenu}className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
                   Features
                 </Link>
-                <Link href="#for-companies" className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link href="#for-companies" onClick={closeMenu} className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
                   For Companies
                 </Link>
-                <Link href="#faq" className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link href="#faq" onClick={closeMenu} className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
                   FAQ
                 </Link>
               </nav>
