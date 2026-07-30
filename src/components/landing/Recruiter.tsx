@@ -29,13 +29,13 @@ export function Recruiter() {
             {/* image  */}
             <div className="mt-9 grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className=" mt-16 lg:mt-0 w-full max-w-7xl">
-                <div className="h-120 rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl">
+                <div className="h-110 rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl">
                  {/* Dashboard Image */}
               </div>
             </div>
             {/* text */}
             <div className="flex flex-col items-start gap-3 w-full">
-              <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-6 py-4 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
+              <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-4 py-2 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
                 <Building className="h-6 w-6" />
               </div>
@@ -50,7 +50,7 @@ export function Recruiter() {
                 </p>
               </div>
             </div>
-            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-6 py-4 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
+            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-4 py-2 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
                 <Trophy className="h-6 w-6" />
               </div>
@@ -64,7 +64,7 @@ export function Recruiter() {
                 </p>
               </div>
             </div>
-            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-6 py-4 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
+            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-4 py-2 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
                 <Layers3 className="h-6 w-6" />
               </div>
@@ -77,7 +77,7 @@ export function Recruiter() {
                 </p>
                 </div>
             </div>
-            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-6 py-4 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
+            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-4 py-2 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
                 <MessageSquare className="h-6 w-6" />   
                 </div>
@@ -90,7 +90,7 @@ export function Recruiter() {
                 </p>
                 </div>
             </div>
-            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-6 py-4 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
+            <div className="flex w-full items-center gap-4 rounded-3xl border border-violet-200 bg-white px-4 py-2 shadow-sm transition-all hover:border-violet-400 hover:shadow-md">
                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
                 <BarChart3 className="h-6 w-6" />   
                 </div>
