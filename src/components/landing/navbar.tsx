@@ -1,39 +1,43 @@
-"use client"
+"use client";
+
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Navbar() {
-  const closeMenu = (e: React.MouseEvent<HTMLAnchorElement>) => {
-  const details = e.currentTarget.closest("details") as HTMLDetailsElement;
-  if (details) details.open = false;
-};
+  const closeMenu = (e: React.MouseEvent<HTMLElement>) => {
+    const details = e.currentTarget.closest("details") as HTMLDetailsElement;
+    if (details) details.open = false;
+  };
+
   return (
-    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/" className="flex shrink-0 items-center gap-3">
             <div className="h-8 w-8 rounded-xl bg-linear-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-sm" />
-            <span className="text-base font-bold text-slate-900">Hirefy</span>
+            <span className="text-base font-bold text-foreground">Hirefy</span>
           </Link>
 
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-700 md:flex">
-            <Link href="#platform"  className="hover:text-slate-950">
+          <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
+            <Link href="#platform" className="hover:text-foreground">
               Platform
             </Link>
-            <Link href="#features"   className="hover:text-slate-950">
+            <Link href="#features" className="hover:text-foreground">
               Features
             </Link>
-            <Link href="#for-companies"className="hover:text-slate-950">
+            <Link href="#for-companies" className="hover:text-foreground">
               For Companies
             </Link>
-            <Link href="#faq"className="hover:text-slate-950">
+            <Link href="#faq" className="hover:text-foreground">
               FAQ
             </Link>
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
+            <ThemeToggle />
             <Link
               href="/login"
-              className="rounded-full px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="rounded-full px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
               Login
             </Link>
@@ -48,30 +52,49 @@ export default function Navbar() {
             </Link>
           </div>
           <details className="group static md:hidden">
-            <summary className="flex h-10 w-10 list-none items-center justify-center rounded-full border border-gray-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50 [::-webkit-details-marker]:hidden">
+            <summary className="flex h-10 w-10 list-none items-center justify-center rounded-full border border-border text-muted-foreground shadow-sm transition-colors hover:bg-muted [::-webkit-details-marker]:hidden">
               <span className="text-2xl leading-none">≡</span>
             </summary>
 
-            <div className="absolute left-0 top-16  w-screen bg-white p-4 ">
-              <nav className="flex flex-col text-sm font-medium text-slate-700">
-                <Link href="#platform"   onClick={closeMenu} className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+            <div className="absolute left-0 top-16 w-screen bg-background p-4">
+              <nav className="flex flex-col text-sm font-medium text-muted-foreground">
+                <Link
+                  href="#platform"
+                  onClick={closeMenu}
+                  className="px-3 py-3 hover:bg-muted hover:text-foreground"
+                >
                   Platform
                 </Link>
-                <Link href="#features"    onClick={closeMenu}className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link
+                  href="#features"
+                  onClick={closeMenu}
+                  className="px-3 py-3 hover:bg-muted hover:text-foreground"
+                >
                   Features
                 </Link>
-                <Link href="#for-companies" onClick={closeMenu} className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link
+                  href="#for-companies"
+                  onClick={closeMenu}
+                  className="px-3 py-3 hover:bg-muted hover:text-foreground"
+                >
                   For Companies
                 </Link>
-                <Link href="#faq" onClick={closeMenu} className="px-3 py-3 hover:bg-slate-50 hover:text-slate-950">
+                <Link
+                  href="#faq"
+                  onClick={closeMenu}
+                  className="px-3 py-3 hover:bg-muted hover:text-foreground"
+                >
                   FAQ
                 </Link>
               </nav>
 
-              <div className="mt-4 grid gap-3 border-t border-gray-200 pt-4">
+              <div className="mt-4 grid gap-3 border-t border-border pt-4">
+                <div className="flex justify-center ">
+                  <ThemeToggle onClick={closeMenu} />
+                </div>
                 <Link
                   href="/login"
-                  className="rounded-full border border-gray-200 px-4 py-3 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                  className="rounded-full border border-border px-4 py-3 text-center text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   Login
                 </Link>
