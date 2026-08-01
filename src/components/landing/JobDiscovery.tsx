@@ -24,7 +24,7 @@ export function JobDiscovery() {
             </h1>
 
             <p className="mt-6 text-base text-muted-foreground sm:text-xl">
-              AI reads your profile and returns roles you&apos;ll actually get
+              AI reads your profile and returns roles you'll actually get
               — with match scores, salary insights, and one-click apply.
             </p>
 
