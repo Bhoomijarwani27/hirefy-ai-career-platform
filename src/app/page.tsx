@@ -1,3 +1,4 @@
+import Comparison from "@/components/landing/comparison";
 import { Features } from "@/components/landing/features";
 import { Hero } from "@/components/landing/hero";
 import { JobDiscovery } from "@/components/landing/JobDiscovery";
@@ -5,6 +6,7 @@ import Navbar from "@/components/landing/navbar";
 import { Platform } from "@/components/landing/platform";
 import { Recruiter } from "@/components/landing/Recruiter";
 import { Resume } from "@/components/landing/resume";
+import { Testimonials } from "@/components/landing/testimonials";
 
 export default function Home() {
   return (
@@ -16,6 +18,8 @@ export default function Home() {
       <Resume/>
       <JobDiscovery/>
       <Recruiter/>
+      <Comparison/>
+      <Testimonials/>
       
 
     </main>
