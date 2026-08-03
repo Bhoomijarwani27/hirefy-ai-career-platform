@@ -1,4 +1,5 @@
 import Comparison from "@/components/landing/comparison";
+import { FAQ } from "@/components/landing/faq";
 import { Features } from "@/components/landing/features";
 import { Hero } from "@/components/landing/hero";
 import { JobDiscovery } from "@/components/landing/JobDiscovery";
@@ -20,8 +21,7 @@ export default function Home() {
       <Recruiter/>
       <Comparison/>
       <Testimonials/>
-      
-
+      <FAQ/>
     </main>
   );
 }

@@ -33,7 +33,7 @@ const testimonials: Testimonial[] = [
 
 export function TestimonialCard({ testimonial }: { testimonial: Testimonial }) {
     return (
-        <div className="rounded-r-3xl border border-border bg-card p-6 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:border-indigo-300 hover:shadow-md">
            {/* stars */}
             <div className="flex items-center gap-1 text-amber-400">
                 {[...Array(5)].map((_, index) => (
