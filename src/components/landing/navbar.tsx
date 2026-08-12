@@ -99,7 +99,7 @@ export default function Navbar() {
                   Login
                 </Link>
                 <Link
-                  href="/signup"
+                  href="/auth/register"
                   className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                 >
                   Get started
