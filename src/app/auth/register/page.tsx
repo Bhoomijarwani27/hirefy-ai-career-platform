@@ -285,14 +285,30 @@ export default function RegisterPage() {
     .
   </label>
 </div>
- 
+
+{/* Create Account */}
+<button
+  type="submit"
+  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+>
+  Create account
+  <span aria-hidden="true">→</span>
+</button>
+
+{/* Login link */}
+<p className="mt-5 text-center text-sm text-muted-foreground">
+  Already have an account?{" "}
+  <a
+    href="/auth/login"
+    className="font-medium text-primary hover:underline"
+  >
+    Sign in
+  </a>
+</p>
+
     </div>
   </div>
-</section>
-       
-       
-       
-       
+</section>     
     </main>
   );
 }  
