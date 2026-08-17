@@ -36,7 +36,7 @@ export default function Navbar() {
           <div className="hidden items-center gap-2 md:flex">
             <ThemeToggle />
             <Link
-              href="/login"
+              href="/auth/login"
               className="rounded-full px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
               Login
@@ -93,7 +93,7 @@ export default function Navbar() {
                   <ThemeToggle onClick={closeMenu} />
                 </div>
                 <Link
-                  href="/login"
+                  href="/auth/login"
                   className="rounded-full border border-border px-4 py-3 text-center text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   Login

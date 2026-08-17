@@ -1,7 +1,11 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Hero() {
+   const router = useRouter();
   return (
     <section className="relative min-h-screen overflow-hidden bg-background">
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
@@ -45,6 +49,7 @@ export function Hero() {
           <div className="mt-10 flex items-center justify-center">
             <Button
               size="lg"
+              onClick={() => router.push("/auth/register")}
               className="rounded-full px-8 py-6 text-base font-semibold shadow-xl shadow-foreground/10"
             >
               Get started
