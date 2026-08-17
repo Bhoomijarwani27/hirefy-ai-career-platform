@@ -1,7 +1,7 @@
 "use client";
 import AuthPanel from "@/components/auth/AuthPanel";
 import SocialLogin from "@/components/auth/social-login";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";  
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Building2, Check, FileText, Search, Sparkles, UserRound, Users } from "lucide-react";
