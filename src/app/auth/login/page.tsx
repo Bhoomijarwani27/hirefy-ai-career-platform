@@ -6,9 +6,23 @@ import { Eye, EyeOff } from "lucide-react";
 import AuthPanel from "@/components/auth/AuthPanel";
 import SocialLogin from "@/components/auth/social-login";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema } from "@/schemas/loginSchema";
+import { z } from "zod";
+
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+
+  const form = useForm<z.infer<typeof loginSchema>>({
+  resolver: zodResolver(loginSchema),
+  mode: "onChange",
+  defaultValues: {
+    email: "",
+    password: "",
+  },
+});
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
@@ -57,6 +71,12 @@ export default function LoginPage() {
 
             {/* OAuth */}
             <SocialLogin />
+           <form
+          noValidate
+         onSubmit={form.handleSubmit((data) => {
+          console.log(data);
+           })}
+           > 
 
             {/* Email */}
             <div className="mt-6">
@@ -69,12 +89,15 @@ export default function LoginPage() {
 
               <input
                 id="email"
-                name="email"
                 type="email"
                 placeholder="Enter your email"
+                {...form.register("email")}
                 autoComplete="email"
                 className="mt-2 h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
+              <p className="mt-1.5 text-sm text-destructive">
+                {form.formState.errors.email?.message}
+              </p>
             </div>
 
             {/* Password */}
@@ -98,12 +121,15 @@ export default function LoginPage() {
               <div className="relative mt-2">
                 <input
                   id="password"
-                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
+                  {...form.register("password")}
                   autoComplete="current-password"
                   className="h-11 w-full rounded-md border border-input bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
                 />
+                <p className="mt-1.5 text-sm text-destructive">
+                {form.formState.errors.password?.message}
+                 </p>
 
                 <button
                   type="button"
@@ -130,6 +156,7 @@ export default function LoginPage() {
               Sign in
               <span aria-hidden="true">→</span>
             </button>
+            </form>
 
             {/* Register link */}
             <p className="mt-5 text-center text-sm text-muted-foreground">

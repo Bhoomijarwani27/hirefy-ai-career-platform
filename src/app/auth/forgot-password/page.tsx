@@ -3,9 +3,32 @@
 import { useRouter } from "next/navigation";
 import AuthPanel from "@/components/auth/AuthPanel";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { forgotPasswordSchema } from "@/schemas/forgotPasswordSchema";
+import { z } from "zod";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  
+  const form = useForm<z.infer<typeof forgotPasswordSchema>>({
+    resolver: zodResolver(forgotPasswordSchema),
+    mode: "onChange",
+    defaultValues: {
+      email: "",
+    },
+  });
+    
+   const onSubmit = (data: z.infer<typeof forgotPasswordSchema>) => {
+    console.log(data);
+       
+    // Later:
+    // 1. Send verification code to backend
+    // 2. If successful, move to verify-email page
+
+    router.push("/auth/verify-email");
+  };
+   
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
@@ -33,10 +56,10 @@ export default function ForgotPasswordPage() {
         <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
           <ThemeToggle />
         </div>
-
-        {/* Content */}
-        <div className="w-full">
-          <div className="w-full max-w-xl">
+      
+          {/* Content */}
+          <div className="w-full">
+            <div className="w-full max-w-xl">
             {/* Heading */}
             <div className="mb-8">
               <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground sm:text-sm">
@@ -53,6 +76,9 @@ export default function ForgotPasswordPage() {
               </p>
             </div>
 
+            {/* Form */}
+            <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
+
             {/* Email */}
             <div>
               <label
@@ -64,36 +90,41 @@ export default function ForgotPasswordPage() {
 
               <input
                 id="email"
-                name="email"
                 type="email"
                 placeholder="Enter your email"
                 autoComplete="email"
+                {...form.register("email")}
                 className="mt-2 h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
+              <p className="mt-1.5 text-sm text-destructive">
+                {form.formState.errors.email?.message}
+              </p>
             </div>
 
             {/* Send Code */}
-            <button
-              type="submit"
-               onClick={() => router.push("/auth/verify-email")}
-              className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Send verification code
-              <span aria-hidden="true">→</span>
-            </button>
-
-            {/* Back to Login */}
-            <p className="mt-5 text-center text-sm text-muted-foreground">
-              Remember your password?{" "}
-              <a
-                href="/auth/login"
-                className="font-medium text-primary hover:underline"
+             <button
+                type="submit"
+                className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Sign in
-              </a>
-            </p>
+                Send verification code
+                <span aria-hidden="true">→</span>
+              </button>
+            </form>
+            
+
+              {/* Back to Login */}
+              <p className="mt-5 text-center text-sm text-muted-foreground">
+                Remember your password?{" "}
+                <a
+                  href="/auth/login"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Sign in
+                </a>
+              </p>
+            </div>
           </div>
-        </div>
+        
       </section>
     </main>
   );

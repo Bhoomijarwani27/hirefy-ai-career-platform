@@ -1,7 +1,19 @@
+"use client";
 import AuthPanel from "@/components/auth/AuthPanel";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { verifyEmailSchema } from "@/schemas/verifyEmailSchema";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 export default function VerifyCodePage() {
+  const form = useForm<z.infer<typeof verifyEmailSchema>>({
+    resolver: zodResolver(verifyEmailSchema),
+    mode: "onChange",
+    defaultValues: {
+    code: "",
+  },
+});
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
       {/* Left side */}
@@ -46,57 +58,69 @@ export default function VerifyCodePage() {
                 We sent a 6-digit verification code to your email address.
               </p>
             </div>
-
-            {/* OTP */}
-            <div>
-              <label
-                htmlFor="otp"
-                className="text-sm font-medium text-foreground"
-              >
-                Verification code
-              </label>
-
-              <input
-                id="otp"
-                name="otp"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="Enter 6-digit code"
-                autoComplete="one-time-code"
-                className="mt-2 h-12 w-full rounded-md border border-input bg-background px-3 text-center text-lg font-medium tracking-[0.4em] text-foreground outline-none transition-colors placeholder:text-sm placeholder:tracking-normal placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
-              />
-            </div>
-
-            {/* Verify */}
-            <button
-              type="submit"
-              className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            
+            <form
+              noValidate
+              onSubmit={form.handleSubmit((data) => {
+                console.log(data);
+              })}
             >
-              Verify code
-              <span aria-hidden="true">→</span>
-            </button>
+              {/* OTP */}
+              <div>
+                <label
+                  htmlFor="otp"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Verification code
+                </label>
 
-            {/* Resend */}
-            <p className="mt-5 text-center text-sm text-muted-foreground">
-              Didn't receive the code?{" "}
+                <input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="Enter 6-digit code"
+                  autoComplete="one-time-code"
+                  {...form.register("code")}
+                  className="mt-2 h-12 w-full rounded-md border border-input bg-background px-3 text-center text-lg font-medium tracking-[0.4em] text-foreground outline-none transition-colors placeholder:text-sm placeholder:tracking-normal placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
+                />
+                {form.formState.errors.code && (
+                  <p className="mt-1.5 text-sm text-destructive">
+                    {form.formState.errors.code.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Verify */}
               <button
-                type="button"
-                className="font-medium text-primary hover:underline"
+                type="submit"
+                className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                Resend code
+                Verify code
+                <span aria-hidden="true">→</span>
               </button>
-            </p>
 
-            {/* Back */}
-            <p className="mt-3 text-center text-sm text-muted-foreground">
-              <a
-                href="/auth/forgot-password"
-                className="font-medium text-primary hover:underline"
-              >
-                ← Back to forgot password
-              </a>
-            </p>
+              {/* Resend */}
+              <p className="mt-5 text-center text-sm text-muted-foreground">
+                Didn't receive the code?{" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary hover:underline"
+                >
+                  Resend code
+                </button>
+              </p>
+
+              {/* Back */}
+              <p className="mt-3 text-center text-sm text-muted-foreground">
+                <a
+                  href="/auth/forgot-password"
+                  className="font-medium text-primary hover:underline"
+                >
+                  ← Back to forgot password
+                </a>
+              </p>
+            </form>
           </div>
         </div>
       </section>

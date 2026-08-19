@@ -1,14 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 
 import AuthPanel from "@/components/auth/AuthPanel";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { resetPasswordSchema } from "@/schemas/resetPasswordSchema";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 export default function ResetPasswordPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const form = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    mode: "onChange",
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  });
+  const onSubmit = (data: z.infer<typeof resetPasswordSchema>) => {
+    console.log(data);
+    // test 
+    router.push("/auth/login");
+  };
+
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
@@ -54,7 +75,10 @@ export default function ResetPasswordPage() {
                 Enter your new password below to secure your account.
               </p>
             </div>
-
+            <form
+              noValidate
+              onSubmit={form.handleSubmit(onSubmit)}
+              >
             {/* New Password */}
             <div>
               <label
@@ -67,10 +91,10 @@ export default function ResetPasswordPage() {
               <div className="relative mt-2">
                 <input
                   id="password"
-                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a new password"
                   autoComplete="new-password"
+                  {...form.register("password")}
                   className="h-11 w-full rounded-md border border-input bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
                 />
 
@@ -90,6 +114,11 @@ export default function ResetPasswordPage() {
                 </button>
               </div>
             </div>
+            {form.formState.errors.password && (
+                  <p className="mt-1.5 text-sm text-destructive">
+                    {form.formState.errors.password.message}
+                  </p>
+                )}
 
             {/* Confirm Password */}
             <div className="mt-5">
@@ -103,10 +132,10 @@ export default function ResetPasswordPage() {
               <div className="relative mt-2">
                 <input
                   id="confirmPassword"
-                  name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Confirm your new password"
                   autoComplete="new-password"
+                  {...form.register("confirmPassword")}
                   className="h-11 w-full rounded-md border border-input bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
                 />
 
@@ -129,6 +158,11 @@ export default function ResetPasswordPage() {
                   )}
                 </button>
               </div>
+              {form.formState.errors.confirmPassword && (
+                  <p className="mt-1.5 text-sm text-destructive">
+                    {form.formState.errors.confirmPassword.message}
+                  </p>
+                )}
             </div>
 
             {/* Reset Password */}
@@ -139,6 +173,7 @@ export default function ResetPasswordPage() {
               Reset password
               <span aria-hidden="true">→</span>
             </button>
+            </form>
 
             {/* Back to Login */}
             <p className="mt-5 text-center text-sm text-muted-foreground">

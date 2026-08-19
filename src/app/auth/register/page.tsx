@@ -5,11 +5,27 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Building2, Check, FileText, Search, Sparkles, UserRound, Users } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import { registerSchema } from "@/schemas/auth";
+import { z } from "zod";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [accountType, setAccountType] = useState<"seeker" | "company">("seeker");
+  const form = useForm<z.infer<typeof registerSchema>>({
+  resolver: zodResolver(registerSchema),
+  mode: "onBlur",
+  defaultValues: {
+    email: "",
+    password: "",
+    confirmPassword: "",
+    accountType: "seeker",
+    terms: false,
+  },
+});
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
         {/* left side */}
@@ -58,6 +74,12 @@ export default function RegisterPage() {
 
       {/* OAuth will come here */}
       <SocialLogin />
+      <form
+      noValidate
+       onSubmit={form.handleSubmit((data) => {
+    console.log(data);
+  })}
+>
       <div className="mt-6">
       <label
       htmlFor="email"
@@ -68,12 +90,17 @@ export default function RegisterPage() {
 
     <input
     id="email"
-    name="email"
     type="email"
     placeholder="Enter your email"
     autoComplete="email"
+    {...form.register("email")}
     className="mt-2 h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
   />
+  {form.formState.errors.email && (
+  <p className="mt-1.5 text-sm text-destructive">
+    {form.formState.errors.email.message}
+  </p>
+)}
   </div>
    <div className="mt-5">
   <label
@@ -86,12 +113,17 @@ export default function RegisterPage() {
   <div className="relative mt-2">
     <input
       id="password"
-      name="password"
       type={showPassword ? "text" : "password"}
       placeholder="Create a password"
       autoComplete="new-password"
+      {...form.register("password")}
       className="h-11 w-full rounded-md border border-input bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
     />
+    {form.formState.errors.password && (
+  <p className="mt-1.5 text-sm text-destructive">
+    {form.formState.errors.password.message}
+  </p>
+)}
 
     <button
       type="button"
@@ -118,12 +150,17 @@ export default function RegisterPage() {
   <div className="relative mt-2">
     <input
       id="confirmPassword"
-      name="confirmPassword"
       type={showConfirmPassword ? "text" : "password"}
       placeholder="Confirm your password"
       autoComplete="new-password"
+      {...form.register("confirmPassword")}
       className="h-11 w-full rounded-md border border-input bg-background px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
     />
+    {form.formState.errors.confirmPassword && (
+  <p className="mt-1.5 text-sm text-destructive">
+    {form.formState.errors.confirmPassword.message}
+  </p>
+)}
 
     <button
       type="button"
@@ -158,7 +195,10 @@ export default function RegisterPage() {
     {/* Job Seeker */}
     <button
       type="button"
-      onClick={() => setAccountType("seeker")}
+      onClick={() => {
+      setAccountType("seeker");
+      form.setValue("accountType", "seeker");
+       }}
       className={`relative rounded-xl border p-4 text-left transition-all ${
         accountType === "seeker"
           ? "border-violet-400 bg-violet-50/60 shadow-sm shadow-violet-500/10 dark:border-violet-400/50 dark:bg-violet-400/10"
@@ -207,7 +247,10 @@ export default function RegisterPage() {
     {/* Company */}
     <button
       type="button"
-      onClick={() => setAccountType("company")}
+      onClick={() => {
+      setAccountType("company");
+      form.setValue("accountType", "company");
+     }}
       className={`relative rounded-xl border p-4 text-left transition-all ${
         accountType === "company"
           ? "border-violet-400 bg-violet-50/60 shadow-sm shadow-violet-500/10 dark:border-violet-400/50 dark:bg-violet-400/10"
@@ -259,10 +302,15 @@ export default function RegisterPage() {
 <div className="mt-5 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3">
   <input
     id="terms"
-    name="terms"
     type="checkbox"
+    {...form.register("terms")}
     className="mt-0.5 size-4 shrink-0 rounded border-input accent-violet-600"
   />
+  {form.formState.errors.terms && (
+  <p className="mt-1.5 text-sm text-destructive">
+    {form.formState.errors.terms.message}
+  </p>
+)}
 
   <label
     htmlFor="terms"
@@ -294,6 +342,7 @@ export default function RegisterPage() {
   Create account
   <span aria-hidden="true">→</span>
 </button>
+</form>
 
 {/* Login link */}
 <p className="mt-5 text-center text-sm text-muted-foreground">
