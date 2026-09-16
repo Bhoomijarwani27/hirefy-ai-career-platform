@@ -10,9 +10,46 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@/schemas/loginSchema";
 import { z } from "zod";
+import { authClient } from "@/lib/auth-client";
+import { getDashboardPath } from "@/lib/auth-utils";
+import { useRouter } from "next/navigation";
+
+
 
 
 export default function LoginPage() {
+  const router = useRouter();
+const [error, setError] = useState("");
+const [loading, setLoading] = useState(false);
+
+const onSubmit = async (data: z.infer<typeof loginSchema>) => {
+  setLoading(true);
+  setError("");
+
+  const res = await authClient.signIn.email({
+    email: data.email,
+    password: data.password,
+  });
+
+  if (res.error) {
+    if (res.error.message?.includes("verify your email")) {
+      // Auto-trigger OTP and redirect
+      await authClient.emailOtp.sendVerificationOtp({
+        email: data.email,
+        type: "email-verification",
+      });
+      router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+      return;
+    }
+    setError(res.error.message || "Invalid email or password");
+    setLoading(false);
+    return;
+  }
+
+  const user = res.data?.user as { role?: string } | undefined;
+  router.push(getDashboardPath(user?.role));
+};
+
   const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<z.infer<typeof loginSchema>>({
@@ -71,12 +108,13 @@ export default function LoginPage() {
 
             {/* OAuth */}
             <SocialLogin />
-           <form
-          noValidate
-         onSubmit={form.handleSubmit((data) => {
-          console.log(data);
-           })}
-           > 
+            {error && (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
+           <form noValidate onSubmit={form.handleSubmit(onSubmit)}> 
 
             {/* Email */}
             <div className="mt-6">
@@ -151,9 +189,10 @@ export default function LoginPage() {
             {/* Sign in */}
             <button
               type="submit"
-              className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              disabled={loading}
+              className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
             >
-              Sign in
+              {loading ? "Signing in..." : "Sign in"}
               <span aria-hidden="true">→</span>
             </button>
             </form>

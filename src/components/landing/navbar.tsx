@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { HirefyLogo } from "@/components/logos/hirefylogo";
 
 export default function Navbar() {
   const closeMenu = (e: React.MouseEvent<HTMLElement>) => {
@@ -13,10 +14,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
-          <Link href="/" className="flex shrink-0 items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-linear-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-sm" />
-            <span className="text-base font-bold text-foreground">Hirefy</span>
-          </Link>
+           <HirefyLogo/> 
 
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
             <Link href="#platform" className="hover:text-foreground">

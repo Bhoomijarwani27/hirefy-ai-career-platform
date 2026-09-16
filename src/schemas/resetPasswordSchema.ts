@@ -2,6 +2,10 @@ import { z } from "zod";
 
 export const resetPasswordSchema = z
 .object ({
+    code: z
+      .string()
+      .length(6, "Enter the 6-digit verification code"),
+
     password: z
 .string()
     .min(8, "Password must be at least 8 characters long")

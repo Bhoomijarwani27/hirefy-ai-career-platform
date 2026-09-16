@@ -7,11 +7,56 @@ import { Eye, EyeOff } from "lucide-react";
 import { Building2, Check, FileText, Search, Sparkles, UserRound, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
+import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 import { registerSchema } from "@/schemas/auth";
 import { z } from "zod";
 
 export default function RegisterPage() {
+  const router = useRouter();
+const [error, setError] = useState("");
+const [loading, setLoading] = useState(false);
+
+const onSubmit = async (data: z.infer<typeof registerSchema>) => {
+  setLoading(true);
+  setError("");
+
+  const role = data.accountType === "company" ? "RECRUITER" : "CANDIDATE";
+
+  // 1. Create account
+  const res = await authClient.signUp.email({
+    email: data.email,
+    password: data.password,
+    name: data.email.split("@")[0],
+    role,
+  } as Parameters<typeof authClient.signUp.email>[0]);
+
+  if (res.error) {
+    setError(res.error.message || "Registration failed");
+    setLoading(false);
+    return;
+  }
+
+  // 2. Send 6-digit OTP verification code
+  const otpRes = await authClient.emailOtp.sendVerificationOtp({
+    email: data.email,
+    type: "email-verification",
+  });
+
+  if (otpRes.error) {
+    setError(
+      otpRes.error.message ||
+        "Account created, but the verification email could not be sent."
+    );
+    setLoading(false);
+    return;
+  }
+
+  setLoading(false);
+  router.push(
+    `/auth/verify-email?email=${encodeURIComponent(data.email)}&role=${role}`
+  );
+};
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [accountType, setAccountType] = useState<"seeker" | "company">("seeker");
@@ -74,12 +119,13 @@ export default function RegisterPage() {
 
       {/* OAuth will come here */}
       <SocialLogin />
-      <form
-      noValidate
-       onSubmit={form.handleSubmit((data) => {
-    console.log(data);
-  })}
->
+      {error && (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <div className="mt-6">
       <label
       htmlFor="email"
@@ -337,9 +383,10 @@ export default function RegisterPage() {
 {/* Create Account */}
 <button
   type="submit"
-  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+  disabled={loading}
+  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
 >
-  Create account
+  {loading ? "Creating account..." : "Create account"}
   <span aria-hidden="true">→</span>
 </button>
 </form>

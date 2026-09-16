@@ -7,9 +7,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { forgotPasswordSchema } from "@/schemas/forgotPasswordSchema";
 import { z } from "zod";
+import { authClient } from "@/lib/auth-client";
+import { useState } from "react";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   
   const form = useForm<z.infer<typeof forgotPasswordSchema>>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -19,14 +23,22 @@ export default function ForgotPasswordPage() {
     },
   });
     
-   const onSubmit = (data: z.infer<typeof forgotPasswordSchema>) => {
-    console.log(data);
-       
-    // Later:
-    // 1. Send verification code to backend
-    // 2. If successful, move to verify-email page
+  const onSubmit = async (data: z.infer<typeof forgotPasswordSchema>) => {
+    setLoading(true);
+    setError("");
 
-    router.push("/auth/verify-email");
+    const res = await authClient.emailOtp.sendVerificationOtp({
+      email: data.email,
+      type: "forget-password",
+    });
+
+    if (res.error) {
+      setError(res.error.message || "Failed to send verification code");
+      setLoading(false);
+      return;
+    }
+
+    router.push(`/auth/reset-password?email=${encodeURIComponent(data.email)}`);
   };
    
 
@@ -76,9 +88,13 @@ export default function ForgotPasswordPage() {
               </p>
             </div>
 
-            {/* Form */}
-            <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
+            {error && (
+              <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {error}
+              </p>
+            )}
 
+            <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
             {/* Email */}
             <div>
               <label
@@ -104,9 +120,10 @@ export default function ForgotPasswordPage() {
             {/* Send Code */}
              <button
                 type="submit"
-                className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                disabled={loading}
+                className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
               >
-                Send verification code
+                {loading ? "Sending code..." : "Send verification code"}
                 <span aria-hidden="true">→</span>
               </button>
             </form>
