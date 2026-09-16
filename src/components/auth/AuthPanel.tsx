@@ -1,3 +1,5 @@
+import { HirefyLogo } from "../logos/hirefylogo";
+
 type AuthPanelProps = {
   badge: string;
   title: React.ReactNode;
@@ -30,17 +32,12 @@ export default function AuthPanel({
       {/* Content */}
       <div className="relative z-10 flex h-full flex-col">
         {/* Brand */}
-        <div className="flex items-center gap-2">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-500/25 dark:bg-violet-500">
-            <span className="text-sm font-bold">H</span>
-          </div>
-          <span className="text-xl font-semibold tracking-tight text-foreground">Hirefy</span>
-        </div>
+        <HirefyLogo/>
         {/* Badge */}
-        <div className="mt-16 inline-flex w-fit items-center gap-2 rounded-full border border-violet-200/70 bg-violet-50/80 px-3 py-1.5 text-sm font-medium text-violet-700 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-300">
+         <div className="mt-16 inline-flex w-fit items-center gap-2 rounded-full border border-violet-200/70 bg-violet-50/80 px-3 py-1.5 text-sm font-medium text-violet-700 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-300">
           <span className="size-1.5 rounded-full bg-violet-500"/>
-          {badge}
-        </div>
+          {badge} 
+        </div>  
         {/* Heading */}
         <h1 className="mt-6 max-w-xl text-5xl font-semibold leading-[1.08] tracking-tight text-foreground xl:text-6xl">
         {title}
