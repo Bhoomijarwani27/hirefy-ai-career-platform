@@ -14,29 +14,51 @@ import {
 
 type PendingProvider = "google" | "github" | null;
 
-export default function SocialLogin() {
+type SocialLoginProps = {
+  mode: "register" | "login";
+};
+
+export default function SocialLogin({ mode }: SocialLoginProps) {
   const [loadingProvider, setLoadingProvider] = useState<PendingProvider>(null);
   const [pendingProvider, setPendingProvider] = useState<PendingProvider>(null);
   const [error, setError] = useState("");
 
   const runSocialLogin = async (
     provider: "google" | "github",
-    role: OAuthRole
+    role?: OAuthRole
   ) => {
     setPendingProvider(null);
     setLoadingProvider(provider);
     setError("");
 
-    sessionStorage.setItem(OAUTH_ROLE_STORAGE_KEY, role);
-
+    if (role) {
+      sessionStorage.setItem(OAUTH_ROLE_STORAGE_KEY, role);
+    } else {
+      sessionStorage.removeItem(OAUTH_ROLE_STORAGE_KEY);
+    }
+    
+    try {
     const res = await authClient.signIn.social({
       provider,
-      callbackURL: "/auth/oauth-success",
+      callbackURL:
+        mode === "register"
+          ? "/auth/register?oauthError=account-exists"
+          : "/auth/oauth-success",
+      newUserCallbackURL:
+        mode === "register" ? "/auth/oauth-success" : undefined,
+      requestSignUp: mode === "register",
     });
 
     if (res.error) {
       sessionStorage.removeItem(OAUTH_ROLE_STORAGE_KEY);
       setError(res.error.message || "Sign-in failed");
+      setLoadingProvider(null);
+    }
+    } catch (err) {
+      sessionStorage.removeItem(OAUTH_ROLE_STORAGE_KEY);
+      setError(
+        err instanceof Error ? err.message : "Sign-in failed"
+      );
       setLoadingProvider(null);
     }
   };
@@ -66,7 +88,11 @@ export default function SocialLogin() {
             disabled={!!loadingProvider}
             onClick={() => {
               setError("");
-              setPendingProvider("google");
+              if (mode === "login") {
+                void runSocialLogin("google");
+              } else {
+                setPendingProvider("google");
+              }
             }}
             className="h-11 w-full cursor-pointer justify-center gap-2 hover:bg-accent"
           >
@@ -80,7 +106,11 @@ export default function SocialLogin() {
             disabled={!!loadingProvider}
             onClick={() => {
               setError("");
-              setPendingProvider("github");
+              if (mode === "login") {
+                void runSocialLogin("github");
+              } else {
+                setPendingProvider("github");
+              }
             }}
             className="h-11 w-full cursor-pointer justify-center gap-2 hover:bg-accent"
           >

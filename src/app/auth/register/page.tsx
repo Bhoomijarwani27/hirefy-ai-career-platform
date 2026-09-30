@@ -2,7 +2,7 @@
 import AuthPanel from "@/components/auth/AuthPanel";
 import SocialLogin from "@/components/auth/social-login";
 import { ThemeToggle } from "@/components/theme-toggle";  
-import { useState } from "react";
+import { use, useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Building2, Check, FileText, Search, Sparkles, UserRound, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -12,10 +12,27 @@ import { useRouter } from "next/navigation";
 import { registerSchema } from "@/schemas/auth";
 import { z } from "zod";
 
-export default function RegisterPage() {
+type RegisterPageProps = {
+  searchParams: Promise<{ oauthError?: string | string[] }>;
+};
+
+export default function RegisterPage({ searchParams }: RegisterPageProps) {
   const router = useRouter();
-const [error, setError] = useState("");
+  const resolvedSearchParams = use(searchParams);
+  const hasOAuthError = resolvedSearchParams.oauthError === "account-exists";
+  const [error, setError] = useState(
+    hasOAuthError
+    ? "An account with this Google or GitHub account already exists. Please sign in instead."
+    : ""
+  );
 const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!hasOAuthError) return;
+
+    void authClient.signOut();
+    window.history.replaceState({}, "", "/auth/register");
+  }, [hasOAuthError]);
 
 const onSubmit = async (data: z.infer<typeof registerSchema>) => {
   setLoading(true);
@@ -24,15 +41,37 @@ const onSubmit = async (data: z.infer<typeof registerSchema>) => {
   const role = data.accountType === "company" ? "RECRUITER" : "CANDIDATE";
 
   // 1. Create account
-  const res = await authClient.signUp.email({
-    email: data.email,
-    password: data.password,
-    name: data.email.split("@")[0],
-    role,
-  } as Parameters<typeof authClient.signUp.email>[0]);
+  let res;
+
+  try {
+    res = await authClient.signUp.email({
+      email: data.email,
+      password: data.password,
+      name: data.email.split("@")[0],
+      role,
+    } as Parameters<typeof authClient.signUp.email>[0]);
+  } catch (submissionError) {
+    setError(
+      submissionError instanceof Error
+        ? submissionError.message
+        : "Registration failed. Please try again."
+    );
+    setLoading(false);
+    return;
+  }
 
   if (res.error) {
-    setError(res.error.message || "Registration failed");
+    const message = res.error.message || "Registration failed";
+    const errorCode = ((res.error as { code?: string }).code || "").toUpperCase();
+    setError(
+      ["USER_ALREADY_EXISTS", "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"].includes(
+        errorCode
+      ) || /already exists|use another email|duplicate|email.*(taken|registered)/i.test(
+        message
+      )
+        ? "An account with this email already exists. Please sign in instead."
+        : message
+    );
     setLoading(false);
     return;
   }
@@ -118,7 +157,7 @@ const onSubmit = async (data: z.infer<typeof registerSchema>) => {
       </div>
 
       {/* OAuth will come here */}
-      <SocialLogin />
+      <SocialLogin mode="register" />
       {error && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}

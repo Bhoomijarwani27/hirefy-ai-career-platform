@@ -47,6 +47,7 @@ if (googleClientId && googleClientSecret) {
   socialProviders.google = {
     clientId: googleClientId,
     clientSecret: googleClientSecret,
+    disableImplicitSignUp: true,
   };
 }
 
@@ -59,6 +60,7 @@ if (
   socialProviders.github = {
     clientId: githubClientId,
     clientSecret: githubClientSecret,
+    disableImplicitSignUp: true,
   };
 }
 

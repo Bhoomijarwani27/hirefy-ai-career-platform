@@ -107,7 +107,7 @@ const onSubmit = async (data: z.infer<typeof loginSchema>) => {
             </div>
 
             {/* OAuth */}
-            <SocialLogin />
+            <SocialLogin mode="login" />
             {error && (
               <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {error}
