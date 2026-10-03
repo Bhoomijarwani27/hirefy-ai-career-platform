@@ -5,6 +5,7 @@ import {
   Mail,
   Briefcase,
 } from "lucide-react";
+import { HirefyLogo } from "../logos/hirefylogo";
 
 const product = [
   "Resume Builder",
@@ -48,13 +49,7 @@ export function Footer() {
 
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-indigo-500 to-cyan-400 text-white">
-                <Briefcase className="h-5 w-5" />
-              </div>
-
-              <span className="text-2xl font-bold text-foreground">
-                Hirefy
-              </span>
+              <HirefyLogo/>
             </div>
 
             <p className="mt-5 max-w-sm text-muted-foreground leading-7">
