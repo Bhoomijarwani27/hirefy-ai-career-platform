@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/auth/register" &&
     request.nextUrl.searchParams.get("oauthError") === "account-exists";
   const isProtectedPage =
-    pathname.startsWith("/seeker") ||
+    (pathname.startsWith("/seeker") && pathname !== "/seeker/jobs") ||
     pathname.startsWith("/company") ||
     pathname.startsWith("/settings");
 

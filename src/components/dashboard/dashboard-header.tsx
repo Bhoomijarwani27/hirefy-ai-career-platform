@@ -1,23 +1,51 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, ChevronDown, Search, UserRound } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  Menu,
+  Search,
+  UserRound,
+  X,
+  FileText,
+  BriefcaseBusiness,
+  Layers3,
+  Settings,
+  LogOut,
+} from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { HirefyLogo } from "@/components/logos/hirefylogo";
 
-
 const profileMenuItems = [
-  { label: "My Profile", href: "/seeker/profile" },
-  { label: "Settings", href: "/settings" },
-  { label: "Help & Support", href: "/help" },
+  { label: "My Profile", href: "/seeker/dashboard", icon: UserRound },
+  { label: "Resume Studio", href: "/seeker/resume-studio", icon: FileText },
+  { label: "Saved Jobs", href: "/seeker/jobs", icon: BriefcaseBusiness },
+  { label: "Applications", href: "/seeker/applications", icon: Layers3 },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  userName?: string;
+  userInitials?: string;
+  onSearch?: (term: string) => void;
+  searchValue?: string;
+}
+
+export function DashboardHeader({
+  userName = "Jamie Smith",
+  userInitials = "JS",
+  onSearch,
+  searchValue,
+}: DashboardHeaderProps) {
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [internalSearch, setInternalSearch] = useState(searchValue ?? "");
 
   const closeMenu = (event: React.MouseEvent<HTMLElement>) => {
     const details = event.currentTarget.closest("details");
@@ -25,86 +53,171 @@ export function DashboardHeader() {
   };
 
   const handleLogout = async () => {
-    await authClient.signOut();
+    try {
+      await authClient.signOut();
+    } catch {
+      // ignore
+    }
     router.push("/auth/login");
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInternalSearch(val);
+    onSearch?.(val);
+  };
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
-      <div className="mx-auto flex min-h-16 w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-3">
-          <HirefyLogo/>
-          <div className="hidden w-full max-w-xl items-center md:flex">
-            <label className="relative w-full">
-              <span className="sr-only">Search</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-violet-500" />
-              <input
-                type="search"
-                placeholder="Search anything..."
-                className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 dark:focus:border-violet-400/50"
-              />
-            </label>
+    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
+      <div className="mx-auto flex min-h-16 w-full max-w-[1440px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        {/* Brand Logo */}
+        <Link href="/seeker/dashboard" className="shrink-0 transition-opacity hover:opacity-90">
+          <HirefyLogo size={40} />
+        </Link>
+
+        {/* Global Search Bar (Middle) */}
+        <div className="hidden max-w-xl flex-1 items-center md:flex">
+          <div className="relative w-full">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={searchValue !== undefined ? searchValue : internalSearch}
+              onChange={handleSearchChange}
+              placeholder="Search jobs, companies, skills..."
+              className="h-10 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 dark:focus:border-violet-400/50"
+            />
+          </div>
+        </div>
+
+        {/* Right Actions */}
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Menu button */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+            className="size-9 rounded-xl border-border text-muted-foreground hover:border-violet-300 hover:text-foreground md:hidden"
+          >
+            {mobileMenuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+          </Button>
+
+          {/* Theme Toggle */}
+          <div className="hidden sm:block">
+            <ThemeToggle />
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
-            <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Notifications"
-              className="relative border border-transparent text-muted-foreground hover:border-violet-300 hover:text-violet-600 focus-visible:border-violet-400 focus-visible:ring-violet-500/30 active:border-violet-400 dark:hover:border-violet-400/40 dark:hover:text-violet-400 dark:focus-visible:border-violet-400/50"
-            >
-              <Bell className="size-4" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-violet-500" />
-            </Button>
+          {/* Notifications button */}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Notifications"
+            className="relative size-9 rounded-xl border-border text-muted-foreground hover:border-violet-300 hover:text-foreground focus-visible:ring-violet-500/30"
+          >
+            <Bell className="size-4" />
+            <span className="absolute right-2 top-2 size-2 rounded-full bg-violet-600 ring-2 ring-background" />
+          </Button>
 
-            <details className="group relative">
-              <summary className="flex h-9 list-none items-center gap-2 rounded-lg border border-border bg-background px-2.5 text-sm font-medium text-foreground outline-none transition-colors hover:border-violet-300 hover:bg-violet-50/60 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-500/20 group-open:border-violet-400 group-open:bg-violet-50/60 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10 dark:focus-visible:border-violet-400/50 dark:group-open:border-violet-400/50 dark:group-open:bg-violet-400/10 [&::-webkit-details-marker]:hidden">
-                <span className="flex size-6 items-center justify-center rounded-full bg-violet-500/10 text-violet-600 dark:bg-violet-400/10 dark:text-violet-400">
-                  <UserRound className="size-3.5" />
-                </span>
-                <span className="hidden sm:inline">Profile</span>
-                <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-open:rotate-180 group-open:text-violet-500" />
-              </summary>
+          {/* Profile Dropdown */}
+          <details className="group relative">
+            <summary className="flex h-9 list-none cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background px-2.5 text-sm font-medium text-foreground outline-none transition-colors hover:border-violet-300 hover:bg-muted/50 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-500/20 group-open:border-violet-400 dark:hover:border-violet-400/40 [&::-webkit-details-marker]:hidden">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-900/60 dark:text-violet-300">
+                {userInitials}
+              </span>
+              <span className="hidden font-medium text-foreground sm:inline">{userName}</span>
+              <ChevronDown className="hidden size-3.5 text-muted-foreground transition-transform group-open:rotate-180 group-open:text-violet-600 sm:inline" />
+            </summary>
 
-              <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-sm">
-                {profileMenuItems.map((item) => (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={closeMenu}
-                    className="block rounded-lg border border-transparent px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:border-violet-200/70 hover:bg-violet-50/60 hover:text-violet-700 focus-visible:border-violet-400 focus-visible:bg-violet-50/60 focus-visible:text-violet-700 dark:hover:border-violet-400/20 dark:hover:bg-violet-400/10 dark:hover:text-violet-300 dark:focus-visible:border-violet-400/50 dark:focus-visible:bg-violet-400/10 dark:focus-visible:text-violet-300"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
+            <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl ring-1 ring-black/5 animate-in fade-in-50 zoom-in-95">
+              <div className="border-b border-border/60 px-3 py-2 text-xs">
+                <p className="font-semibold text-foreground">{userName}</p>
+                <p className="text-muted-foreground">jamie.smith@example.com</p>
+              </div>
+
+              <div className="py-1">
+                {profileMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={closeMenu}
+                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-violet-50 hover:text-violet-700 dark:hover:bg-violet-400/10 dark:hover:text-violet-300"
+                    >
+                      <Icon className="size-4" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="border-t border-border/60 pt-1">
+                <div className="flex items-center justify-between px-3 py-1.5 sm:hidden">
+                  <span className="text-xs text-muted-foreground">Theme</span>
+                  <ThemeToggle />
+                </div>
                 <button
                   type="button"
                   onClick={(event) => {
                     closeMenu(event);
                     void handleLogout();
                   }}
-                  className="block w-full rounded-lg border border-transparent px-3 py-2 text-left text-sm text-muted-foreground outline-none transition-colors hover:border-violet-200/70 hover:bg-violet-50/60 hover:text-violet-700 focus-visible:border-violet-400 focus-visible:bg-violet-50/60 focus-visible:text-violet-700 dark:hover:border-violet-400/20 dark:hover:bg-violet-400/10 dark:hover:text-violet-300 dark:focus-visible:border-violet-400/50 dark:focus-visible:bg-violet-400/10 dark:focus-visible:text-violet-300"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-rose-600 outline-none transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                 >
+                  <LogOut className="size-4" />
                   Sign out
                 </button>
               </div>
-            </details>
-          </div>
-        </div>
-
-        <div className="md:hidden">
-          <label className="relative block w-full">
-            <span className="sr-only">Search</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-violet-500" />
-            <input
-              type="search"
-              placeholder="Search anything..."
-              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20 dark:focus:border-violet-400/50"
-            />
-          </label>
+            </div>
+          </details>
         </div>
       </div>
+
+      {/* Mobile search bar if menu is open */}
+      {mobileMenuOpen && (
+        <div className="border-t border-border bg-background p-4 md:hidden">
+          <div className="relative mb-3 w-full">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={searchValue !== undefined ? searchValue : internalSearch}
+              onChange={handleSearchChange}
+              placeholder="Search jobs, companies, skills..."
+              className="h-10 w-full rounded-xl border border-border bg-background pl-10 pr-4 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+            />
+          </div>
+          <nav className="grid gap-1">
+            <Link
+              href="/seeker/jobs"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              Job Discovery
+            </Link>
+            <Link
+              href="/seeker/resume-studio"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Resume Studio
+            </Link>
+            <Link
+              href="/seeker/applications"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Applications
+            </Link>
+            <Link
+              href="/seeker/skill-gap"
+              onClick={() => setMobileMenuOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Skill Gap
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
