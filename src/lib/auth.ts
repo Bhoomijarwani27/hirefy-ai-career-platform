@@ -1,3 +1,4 @@
+
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP } from "better-auth/plugins";
@@ -6,10 +7,26 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// --------------------------------------------------
+// Base URL and trusted origins
+// --------------------------------------------------
+
 const authBaseURL =
   process.env.BETTER_AUTH_URL?.trim() ||
   process.env.NEXT_PUBLIC_APP_URL?.trim() ||
   "http://localhost:3000";
+
+const authOrigin = new URL(authBaseURL).origin;
+
+const trustedOrigins = [
+  authOrigin,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+
+// --------------------------------------------------
+// Environment helper
+// --------------------------------------------------
 
 function env(...keys: string[]) {
   for (const key of keys) {
@@ -23,7 +40,10 @@ function env(...keys: string[]) {
   return undefined;
 }
 
+// --------------------------------------------------
 // OAuth credentials
+// --------------------------------------------------
+
 const googleClientId = env("GOOGLE_CLIENT_ID");
 const googleClientSecret = env("GOOGLE_CLIENT_SECRET");
 
@@ -37,7 +57,10 @@ const githubClientSecret = env(
   "Github__CLIENT_SECRET"
 );
 
+// --------------------------------------------------
 // Social providers
+// --------------------------------------------------
+
 const socialProviders: NonNullable<
   Parameters<typeof betterAuth>[0]["socialProviders"]
 > = {};
@@ -64,24 +87,24 @@ if (
   };
 }
 
+// --------------------------------------------------
+// Better Auth
+// --------------------------------------------------
+
 export const auth = betterAuth({
   // Database
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
 
-  // Better Auth secret
+  // Secret
   secret: process.env.BETTER_AUTH_SECRET,
 
   // Base URL
   baseURL: authBaseURL,
 
   // Trusted origins
-  trustedOrigins: [
-    authBaseURL,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-  ],
+  trustedOrigins,
 
   // Email + Password
   emailAndPassword: {
@@ -171,7 +194,6 @@ export const auth = betterAuth({
   ],
 
   // Automatically create candidate/recruiter profile
-  // when a new user is created.
   databaseHooks: {
     user: {
       create: {
@@ -193,8 +215,8 @@ export const auth = betterAuth({
                 },
               });
             }
-          } catch {
-            // Profile may already exist.
+          } catch (error) {
+            console.error("Profile creation failed:", error);
           }
         },
       },
