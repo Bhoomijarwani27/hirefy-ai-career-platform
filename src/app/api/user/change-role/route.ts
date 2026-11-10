@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { ensureRoleProfile } from "@/lib/user-profile";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -14,30 +15,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { newRole } = await req.json();
+  let newRole: unknown;
+  try {
+    const body = await req.json();
+    newRole = body.newRole;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-  if (!allowedRoles.includes(newRole)) {
+  if (!allowedRoles.includes(newRole as (typeof allowedRoles)[number])) {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { role: newRole },
-  });
+  const role = newRole as (typeof allowedRoles)[number];
 
-  if (newRole === "RECRUITER") {
-    await prisma.companyProfile.upsert({
-      where: { userId: session.user.id },
-      create: { userId: session.user.id },
-      update: {},
+  try {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { role },
     });
-  } else {
-    await prisma.candidateProfile.upsert({
-      where: { userId: session.user.id },
-      create: { userId: session.user.id },
-      update: {},
-    });
+
+    await ensureRoleProfile(session.user.id, role);
+
+    return NextResponse.json({ success: true, role });
+  } catch (error) {
+    console.error(
+      `Failed to update role for user ${session.user.id} to ${role}:`,
+      error
+    );
+    return NextResponse.json(
+      { error: "Failed to update role" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true, role: newRole });
 }

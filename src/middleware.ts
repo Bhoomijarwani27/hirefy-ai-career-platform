@@ -9,6 +9,9 @@ export async function middleware(request: NextRequest) {
   const isExistingAccountRegistration =
     pathname === "/auth/register" &&
     request.nextUrl.searchParams.get("oauthError") === "account-exists";
+  const isLoginOAuthError =
+    pathname === "/auth/login" &&
+    request.nextUrl.searchParams.get("oauthError") === "account-not-linked";
   const isProtectedPage =
     pathname.startsWith("/seeker") ||
     pathname.startsWith("/company") ||
@@ -22,11 +25,13 @@ export async function middleware(request: NextRequest) {
     sessionCookie &&
     isAuthPage &&
     !isExistingAccountRegistration &&
+    !isLoginOAuthError &&
     !pathname.includes("verify-email") &&
     !pathname.includes("reset-password") &&
-    !pathname.includes("oauth-success")
+    !pathname.includes("oauth-success") &&
+    !pathname.includes("continue")
   ) {
-    return NextResponse.redirect(new URL("/seeker/dashboard", request.url));
+    return NextResponse.redirect(new URL("/auth/continue", request.url));
   }
 
   return NextResponse.next();

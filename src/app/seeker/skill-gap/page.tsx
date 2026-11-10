@@ -1,3 +1,7 @@
 import { CareerWorkspace } from "@/components/dashboard/career-workspace";
-import { requireAuthUser } from "@/lib/auth-session";
-export default async function SkillGapPage() { await requireAuthUser(); return <CareerWorkspace kind="skills"/>; }
+import { requireRole } from "@/lib/auth-session";
+
+export default async function SkillGapPage() {
+  await requireRole("CANDIDATE");
+  return <CareerWorkspace kind="skills" />;
+}

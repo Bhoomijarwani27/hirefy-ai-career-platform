@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { emailOTP } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
+import { ensureRoleProfile } from "@/lib/user-profile";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -199,24 +200,17 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           const role =
-            (user as { role?: string }).role ?? "CANDIDATE";
+            (user as { role?: string }).role === "RECRUITER"
+              ? "RECRUITER"
+              : "CANDIDATE";
 
           try {
-            if (role === "RECRUITER") {
-              await prisma.companyProfile.create({
-                data: {
-                  userId: user.id,
-                },
-              });
-            } else {
-              await prisma.candidateProfile.create({
-                data: {
-                  userId: user.id,
-                },
-              });
-            }
+            await ensureRoleProfile(user.id, role);
           } catch (error) {
-            console.error("Profile creation failed:", error);
+            console.error(
+              `Profile creation failed for user ${user.id} (${role}):`,
+              error
+            );
           }
         },
       },

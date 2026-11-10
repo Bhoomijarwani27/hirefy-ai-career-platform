@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 import AuthPanel from "@/components/auth/AuthPanel";
@@ -10,17 +10,33 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@/schemas/loginSchema";
 import { z } from "zod";
+import { clearOAuthRoleStorage } from "@/components/auth/oauth-role-picker";
 import { authClient } from "@/lib/auth-client";
 import { getDashboardPath } from "@/lib/auth-utils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
+function oauthLoginErrorMessage(code: string | null) {
+  if (code === "account-not-linked") {
+    return "This Google or GitHub account is not linked to a Hirefy login. Sign in with email, or create an account on the register page.";
+  }
+  if (code === "account-exists") {
+    return "An account with this email already exists. Please sign in instead.";
+  }
+  return "";
+}
 
-
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-const [error, setError] = useState("");
-const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const oauthError = searchParams.get("oauthError");
+  const [error, setError] = useState(oauthLoginErrorMessage(oauthError));
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!oauthError) return;
+    clearOAuthRoleStorage();
+    window.history.replaceState({}, "", "/auth/login");
+  }, [oauthError]);
 
 const onSubmit = async (data: z.infer<typeof loginSchema>) => {
   setLoading(true);
@@ -211,5 +227,19 @@ const onSubmit = async (data: z.infer<typeof loginSchema>) => {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-background">
+          <p className="text-muted-foreground">Loading...</p>
+        </main>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

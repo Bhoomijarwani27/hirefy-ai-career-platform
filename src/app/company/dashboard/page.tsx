@@ -1,7 +1,7 @@
 import { CompanyDashboard } from "@/components/dashboard/company-dashboard";
-import { requireAuthUser } from "@/lib/auth-session";
+import { requireRole } from "@/lib/auth-session";
 
 export default async function CompanyDashboardPage() {
-  await requireAuthUser();
+  await requireRole("RECRUITER");
   return <CompanyDashboard />;
 }

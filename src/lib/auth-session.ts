@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import type { UserRole } from "@/lib/auth-utils";
+import { getDashboardPath, type UserRole } from "@/lib/auth-utils";
 
 export type AuthUser = {
   id: string;
@@ -26,4 +26,15 @@ export async function requireAuthUser() {
   }
 
   return session.user as AuthUser;
+}
+
+export async function requireRole(allowed: UserRole | UserRole[]) {
+  const user = await requireAuthUser();
+  const allowedRoles = Array.isArray(allowed) ? allowed : [allowed];
+
+  if (!user.role || !allowedRoles.includes(user.role)) {
+    redirect(getDashboardPath(user.role));
+  }
+
+  return user;
 }

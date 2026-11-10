@@ -1,7 +1,7 @@
 import { JobSeekerDashboard } from "@/components/dashboard/job-seeker-dashboard";
-import { requireAuthUser } from "@/lib/auth-session";
+import { requireRole } from "@/lib/auth-session";
 
 export default async function SeekerDashboardPage() {
-  await requireAuthUser();
+  await requireRole("CANDIDATE");
   return <JobSeekerDashboard />;
 }

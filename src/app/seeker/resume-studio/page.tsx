@@ -1,3 +1,7 @@
 import { CareerWorkspace } from "@/components/dashboard/career-workspace";
-import { requireAuthUser } from "@/lib/auth-session";
-export default async function ResumeStudioPage() { await requireAuthUser(); return <CareerWorkspace kind="resume"/>; }
+import { requireRole } from "@/lib/auth-session";
+
+export default async function ResumeStudioPage() {
+  await requireRole("CANDIDATE");
+  return <CareerWorkspace kind="resume" />;
+}

@@ -7,6 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { Building2, Check, FileText, Search, Sparkles, UserRound, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { clearOAuthRoleStorage } from "@/components/auth/oauth-role-picker";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { registerSchema } from "@/schemas/auth";
@@ -30,6 +31,7 @@ const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!hasOAuthError) return;
 
+    clearOAuthRoleStorage();
     void authClient.signOut();
     window.history.replaceState({}, "", "/auth/register");
   }, [hasOAuthError]);

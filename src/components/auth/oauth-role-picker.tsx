@@ -94,3 +94,10 @@ export function OAuthRolePicker({
 }
 
 export const OAUTH_ROLE_STORAGE_KEY = "hirefy_pending_oauth_role";
+export const OAUTH_REGISTRATION_KEY = "hirefy_oauth_registration";
+
+export function clearOAuthRoleStorage() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(OAUTH_ROLE_STORAGE_KEY);
+  sessionStorage.removeItem(OAUTH_REGISTRATION_KEY);
+}
