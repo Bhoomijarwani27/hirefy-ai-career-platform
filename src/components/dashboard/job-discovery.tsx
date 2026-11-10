@@ -296,8 +296,8 @@ interface JobDiscoveryProps {
 }
 
 export function JobDiscovery({
-  userName = "Jamie Smith",
-  userInitials = "JS",
+  userName,
+  userInitials,
 }: JobDiscoveryProps = {}) {
   const [mode, setMode] = useState<"ai" | "manual">("ai");
   const [query, setQuery] = useState("");

@@ -16,6 +16,7 @@ import {
   Settings,
   LogOut,
   Building2,
+  HelpCircle,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -30,11 +31,13 @@ const candidateMenuItems = [
   { label: "Saved Jobs", href: "/seeker/jobs", icon: BriefcaseBusiness },
   { label: "Applications", href: "/seeker/applications", icon: Layers3 },
   { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Help & Support", href: "/help", icon: HelpCircle },
 ];
 
 const recruiterMenuItems = [
   { label: "Company Dashboard", href: "/company/dashboard", icon: Building2 },
   { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Help & Support", href: "/help", icon: HelpCircle },
 ];
 
 interface DashboardHeaderProps {
