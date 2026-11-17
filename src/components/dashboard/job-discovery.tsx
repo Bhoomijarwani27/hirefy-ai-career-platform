@@ -1,7 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import {
+  getStoredResumes,
+  saveResumeToStore,
+  getActiveResumeKey,
+  ResumeOption,
+} from "@/lib/resume-storage";
 import {
   Bookmark,
   BriefcaseBusiness,
@@ -12,6 +18,7 @@ import {
   Filter,
   Lightbulb,
   MapPin,
+  PenLine,
   Plus,
   Search,
   Send,
@@ -43,7 +50,7 @@ export type Job = {
   tip: string;
   recommendationSummary?: string;
   recommendationDetail?: string;
-  industry: "Design" | "Engineering" | "Product";
+  industry: "Design" | "Engineering" | "Product" | "Finance" | "Operations";
 };
 
 const INITIAL_JOBS: Job[] = [
@@ -63,32 +70,46 @@ const INITIAL_JOBS: Job[] = [
     avatarText: "L",
     requiredSkills: ["Figma", "Design Systems", "Prototyping", "User Research"],
     tip: "Mention any exposure to Framer or Motion Design — it's a tiebreaker here.",
-    recommendationSummary: "Your resume covers 5 of 5 required skills — Figma, Design Systems, Prototyping.",
-    recommendationDetail: "No preferred skills matched, but required-skill coverage drives most of the score.",
     industry: "Design",
   },
   {
     id: 2,
-    title: "Design Engineer",
-    company: "Rippling",
-    location: "Remote (Global)",
-    salary: "$110k – $150k",
-    type: "Contract",
+    title: "Full-Stack Software Engineer",
+    company: "Notion",
+    location: "Remote (US)",
+    salary: "$150k – $200k",
+    type: "Full-time",
     mode: "Remote",
-    experience: "2–4 years",
-    skills: ["React", "Tailwind", "Motion Design", "Design Systems"],
-    age: "10d ago",
-    score: 44,
-    avatarBg: "bg-[#00835C]",
-    avatarText: "R",
-    requiredSkills: ["Tailwind", "Design Systems", "React", "Motion Design"],
-    tip: "Add evidence of React and Motion Design to your experience bullets.",
-    recommendationSummary: "Your resume covers 2 of 4 required skills — Tailwind, Design Systems.",
-    recommendationDetail: "No preferred skills matched, but required-skill coverage drives most of the score.",
+    experience: "3+ years",
+    skills: ["React", "TypeScript", "Node.js", "PostgreSQL", "AWS"],
+    age: "1d ago",
+    score: 88,
+    avatarBg: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-white",
+    avatarText: "N",
+    requiredSkills: ["React", "TypeScript", "PostgreSQL", "Node.js"],
+    tip: "Highlight scalable database query optimization and event-driven APIs.",
     industry: "Engineering",
   },
   {
     id: 3,
+    title: "Financial Analyst & Audit Specialist",
+    company: "Deloitte",
+    location: "New York, NY",
+    salary: "$115k – $145k",
+    type: "Full-time",
+    mode: "Hybrid",
+    experience: "2–4 years",
+    skills: ["Financial Analysis", "Audit Compliance", "SQL", "Excel", "Reporting"],
+    age: "3d ago",
+    score: 85,
+    avatarBg: "bg-[#86BC25] text-white",
+    avatarText: "D",
+    requiredSkills: ["Financial Analysis", "Audit Compliance", "Excel", "Reporting"],
+    tip: "Emphasize quantitative modeling, audit readiness, and client reporting experience.",
+    industry: "Finance",
+  },
+  {
+    id: 4,
     title: "Frontend Engineer, Growth",
     company: "Vercel",
     location: "New York, NY",
@@ -96,39 +117,53 @@ const INITIAL_JOBS: Job[] = [
     type: "Full-time",
     mode: "Hybrid",
     experience: "3–5 years",
-    skills: ["React", "TypeScript", "Next.js", "A/B Testing", "Tailwind"],
+    skills: ["React", "TypeScript", "Next.js", "Tailwind", "A/B Testing"],
     age: "5d ago",
-    score: 38,
+    score: 75,
     avatarBg: "bg-black dark:bg-zinc-800",
     avatarText: "V",
-    requiredSkills: ["Tailwind", "React", "TypeScript", "Next.js"],
-    tip: "Add evidence of React and TypeScript to your experience bullets.",
-    recommendationSummary: "Your resume covers 1 of 5 required skills — Tailwind.",
-    recommendationDetail: "No preferred skills matched, but required-skill coverage drives most of the score.",
-    industry: "Engineering",
-  },
-  {
-    id: 4,
-    title: "Full-Stack Engineer",
-    company: "Notion",
-    location: "Remote (US)",
-    salary: "$150k – $200k",
-    type: "Full-time",
-    mode: "Remote",
-    experience: "4+ years",
-    skills: ["React", "Node.js", "PostgreSQL", "TypeScript", "AWS"],
-    age: "1d ago",
-    score: 38,
-    avatarBg: "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-white",
-    avatarText: "N",
-    requiredSkills: ["React", "Node.js", "PostgreSQL"],
-    tip: "Add evidence of React and Node.js to your experience bullets.",
-    recommendationSummary: "Your resume covers 0 of 5 required skills.",
-    recommendationDetail: "No preferred skills matched, but required-skill coverage drives most of the score.",
+    requiredSkills: ["React", "TypeScript", "Next.js", "Tailwind"],
+    tip: "Add evidence of web performance optimization and A/B conversion experiments.",
     industry: "Engineering",
   },
   {
     id: 5,
+    title: "Operations & Strategy Lead",
+    company: "Stripe",
+    location: "San Francisco, CA",
+    salary: "$145k – $185k",
+    type: "Full-time",
+    mode: "On-site",
+    experience: "3+ years",
+    skills: ["Project Management", "Problem Solving", "SQL", "Communication", "Agile"],
+    age: "4d ago",
+    score: 80,
+    avatarBg: "bg-[#635BFF]",
+    avatarText: "S",
+    requiredSkills: ["Project Management", "Problem Solving", "Communication"],
+    tip: "Showcase cross-functional alignment and measurable process improvements.",
+    industry: "Operations",
+  },
+  {
+    id: 6,
+    title: "Tax & Compliance Analyst",
+    company: "KPMG",
+    location: "Chicago, IL",
+    salary: "$105k – $135k",
+    type: "Full-time",
+    mode: "Hybrid",
+    experience: "2+ years",
+    skills: ["Tax Compliance", "Financial Modeling", "Statutory Audit", "Excel", "Data Analysis"],
+    age: "6d ago",
+    score: 78,
+    avatarBg: "bg-[#00338D] text-white",
+    avatarText: "K",
+    requiredSkills: ["Tax Compliance", "Statutory Audit", "Financial Modeling"],
+    tip: "Highlight regulatory reporting turnaround time reductions.",
+    industry: "Finance",
+  },
+  {
+    id: 7,
     title: "Product Designer, Core Systems",
     company: "Figma",
     location: "San Francisco, CA",
@@ -143,107 +178,42 @@ const INITIAL_JOBS: Job[] = [
     avatarText: "F",
     requiredSkills: ["Figma", "Design Systems", "Prototyping", "User Research"],
     tip: "Showcase design token governance and responsive component libraries.",
-    recommendationSummary: "Your resume covers 4 of 4 required skills — Figma, Design Systems, Prototyping.",
-    recommendationDetail: "High skill alignment across core design system requirements.",
-    industry: "Design",
-  },
-  {
-    id: 6,
-    title: "UX Engineer",
-    company: "Webflow",
-    location: "Remote (US)",
-    salary: "$130k – $170k",
-    type: "Full-time",
-    mode: "Remote",
-    experience: "3–5 years",
-    skills: ["React", "CSS", "Accessibility", "Figma", "Design Systems"],
-    age: "4d ago",
-    score: 64,
-    avatarBg: "bg-[#146EF5]",
-    avatarText: "W",
-    requiredSkills: ["Figma", "Design Systems", "React", "CSS"],
-    tip: "Add an accessibility case study or WCAG 2.1 compliance audit.",
-    recommendationSummary: "Your resume covers 3 of 4 required skills — Figma, Design Systems.",
-    recommendationDetail: "Strong design foundation; adding web interaction projects boosts match.",
-    industry: "Engineering",
-  },
-  {
-    id: 7,
-    title: "Staff Product Designer",
-    company: "Stripe",
-    location: "San Francisco, CA",
-    salary: "$190k – $240k",
-    type: "Full-time",
-    mode: "On-site",
-    experience: "5+ years",
-    skills: ["Design Systems", "Figma", "Product Strategy", "User Research", "Fintech"],
-    age: "6d ago",
-    score: 88,
-    avatarBg: "bg-[#635BFF]",
-    avatarText: "S",
-    requiredSkills: ["Figma", "Design Systems", "User Research", "Product Strategy"],
-    tip: "Highlight measurable business outcomes and payments workflow design.",
-    recommendationSummary: "Your resume covers 4 of 5 required skills — Figma, Design Systems, User Research.",
-    recommendationDetail: "Exceptional alignment with executive design leadership criteria.",
     industry: "Design",
   },
   {
     id: 8,
-    title: "Senior Design Systems Lead",
-    company: "Airbnb",
+    title: "Backend Platform Engineer",
+    company: "Datadog",
     location: "Remote (Global)",
-    salary: "$180k – $230k",
+    salary: "$165k – $215k",
     type: "Full-time",
     mode: "Remote",
-    experience: "5+ years",
-    skills: ["Design Systems", "Figma", "Prototyping", "User Research", "Accessibility"],
-    age: "1d ago",
-    score: 92,
-    avatarBg: "bg-[#FF5A5F]",
-    avatarText: "A",
-    requiredSkills: ["Figma", "Design Systems", "Prototyping", "User Research", "Accessibility"],
-    tip: "Highlight experience leading multi-brand system architecture across web and mobile.",
-    recommendationSummary: "Your resume covers 5 of 5 required skills — Figma, Design Systems, Prototyping, User Research.",
-    recommendationDetail: "Top-tier match across all foundational and preferred requirements.",
-    industry: "Design",
+    experience: "4+ years",
+    skills: ["Python", "Go", "Docker", "Kubernetes", "PostgreSQL"],
+    age: "2d ago",
+    score: 84,
+    avatarBg: "bg-[#632CA6] text-white",
+    avatarText: "DD",
+    requiredSkills: ["Python", "Docker", "PostgreSQL", "Kubernetes"],
+    tip: "Mention distributed systems fault-tolerance and high-throughput telemetry.",
+    industry: "Engineering",
   },
 ];
 
-interface ResumeOption {
-  name: string;
-  ats: number;
-  years: string;
-  skillsCount: number;
-  updated: string;
-  knownSkills: string[];
+// Helper to calculate realistic match score dynamically from candidate's real skills
+function computeJobMatchScore(job: Job, candidateSkills: string[]): number {
+  if (!candidateSkills || candidateSkills.length === 0) return 45;
+  const matched = job.requiredSkills.filter((req) =>
+    candidateSkills.some(
+      (s) =>
+        s.toLowerCase() === req.toLowerCase() ||
+        s.toLowerCase().includes(req.toLowerCase()) ||
+        req.toLowerCase().includes(s.toLowerCase())
+    )
+  );
+  const ratio = matched.length / Math.max(job.requiredSkills.length, 1);
+  return Math.min(98, Math.max(35, Math.round(35 + ratio * 60)));
 }
-
-const DEFAULT_RESUMES: Record<string, ResumeOption> = {
-  "Product Designer — 2026.pdf": {
-    name: "Product Designer — 2026.pdf",
-    ats: 91,
-    years: "6 years",
-    skillsCount: 7,
-    updated: "Updated 2 days ago",
-    knownSkills: ["Figma", "Design Systems", "Prototyping", "User Research", "Tailwind", "Accessibility", "Product Strategy"],
-  },
-  "Senior UX Engineer — 2026.pdf": {
-    name: "Senior UX Engineer — 2026.pdf",
-    ats: 88,
-    years: "5 years",
-    skillsCount: 8,
-    updated: "Updated 4 days ago",
-    knownSkills: ["Figma", "Design Systems", "React", "CSS", "Tailwind", "Accessibility", "TypeScript"],
-  },
-  "Full Stack Developer — 2026.pdf": {
-    name: "Full Stack Developer — 2026.pdf",
-    ats: 84,
-    years: "4 years",
-    skillsCount: 9,
-    updated: "Updated 1 week ago",
-    knownSkills: ["React", "Node.js", "TypeScript", "Next.js", "PostgreSQL", "Tailwind", "AWS"],
-  },
-};
 
 // Circular gauge for matching score
 function ScoreGauge({ score }: { score: number }) {
@@ -312,15 +282,36 @@ export function JobDiscovery({
   const [visibleCount, setVisibleCount] = useState(4);
   const [saved, setSaved] = useState<number[]>([]);
   const [appliedJobs, setAppliedJobs] = useState<number[]>([]);
-  const [selectedResumeKey, setSelectedResumeKey] = useState("Product Designer — 2026.pdf");
-  const [resumes, setResumes] = useState(DEFAULT_RESUMES);
+  const [resumes, setResumes] = useState(() => getStoredResumes());
+  const [selectedResumeKey, setSelectedResumeKey] = useState(() => getActiveResumeKey());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSearchingWithAI, setIsSearchingWithAI] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [applyingJob, setApplyingJob] = useState<Job | null>(null);
   const [applyNote, setApplyNote] = useState("");
 
-  const currentResume = resumes[selectedResumeKey] || DEFAULT_RESUMES["Product Designer — 2026.pdf"];
+  useEffect(() => {
+    const syncResumes = () => {
+      const stored = getStoredResumes();
+      setResumes(stored);
+      const activeKey = getActiveResumeKey();
+      if (stored[activeKey]) {
+        setSelectedResumeKey(activeKey);
+      }
+    };
+    syncResumes();
+    window.addEventListener("hirefy-resume-storage-update", syncResumes);
+    return () => window.removeEventListener("hirefy-resume-storage-update", syncResumes);
+  }, []);
+
+  const currentResume = resumes[selectedResumeKey] || Object.values(resumes)[0] || {
+    name: "Resume Draft",
+    ats: 90,
+    years: "5+ years",
+    skillsCount: 7,
+    updated: "Recently",
+    knownSkills: ["Figma", "Design Systems", "Prototyping", "User Research", "Tailwind"],
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -332,7 +323,7 @@ export function JobDiscovery({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const newResume: ResumeOption = {
+      const newResume = {
         name: file.name,
         ats: 92,
         years: "5+ years",
@@ -340,10 +331,7 @@ export function JobDiscovery({
         updated: "Just uploaded",
         knownSkills: ["Figma", "Design Systems", "Prototyping", "User Research", "Tailwind", "React"],
       };
-      setResumes((prev) => ({
-        ...prev,
-        [file.name]: newResume,
-      }));
+      saveResumeToStore(newResume);
       setSelectedResumeKey(file.name);
       showToast(`Uploaded and analyzed "${file.name}" with ATS 92 score.`);
     }
@@ -379,10 +367,18 @@ export function JobDiscovery({
     setQuery("");
   };
 
-  // Filtered and sorted job list
+  // Filtered and sorted job list with dynamic AI match scores
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const result = INITIAL_JOBS.filter((job) => {
+    const candidateSkills = currentResume.knownSkills || [];
+
+    const result = INITIAL_JOBS.map((job) => {
+      const dynamicScore = mode === "ai" ? computeJobMatchScore(job, candidateSkills) : job.score;
+      return {
+        ...job,
+        score: dynamicScore,
+      };
+    }).filter((job) => {
       const queryMatch =
         !q ||
         [job.title, job.company, job.location, ...job.skills].some((item) =>
@@ -435,7 +431,7 @@ export function JobDiscovery({
     }
 
     return result;
-  }, [query, workMode, employment, experience, location, industry, company, salary, sort, mode]);
+  }, [query, workMode, employment, experience, location, industry, company, salary, sort, mode, currentResume.knownSkills]);
 
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
@@ -965,18 +961,33 @@ export function JobDiscovery({
                           </p>
 
                           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                            {job.recommendationSummary ||
-                              `Your resume covers skills required for ${job.title}.`}
+                            {(() => {
+                              const matchedCount = job.requiredSkills.filter((req) =>
+                                (currentResume.knownSkills || []).some(
+                                  (s) =>
+                                    s.toLowerCase() === req.toLowerCase() ||
+                                    s.toLowerCase().includes(req.toLowerCase()) ||
+                                    req.toLowerCase().includes(s.toLowerCase())
+                                )
+                              ).length;
+                              return `Your active resume covers ${matchedCount} of ${job.requiredSkills.length} core skills required for ${job.title}.`;
+                            })()}
                           </p>
                           <p className="text-xs leading-relaxed text-muted-foreground">
-                            {job.recommendationDetail ||
-                              "Required-skill coverage drives most of the score."}
+                            {job.score >= 80
+                              ? "High skill alignment across core competencies and responsibilities."
+                              : "Moderate overlap; adding related domain keywords to your resume will boost this match."}
                           </p>
 
                           {/* Skill Match Pills with Green Checkmarks or Red Crosses */}
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
                             {job.requiredSkills.map((skill) => {
-                              const isMatched = currentResume.knownSkills.includes(skill);
+                              const isMatched = (currentResume.knownSkills || []).some(
+                                (s) =>
+                                  s.toLowerCase() === skill.toLowerCase() ||
+                                  s.toLowerCase().includes(skill.toLowerCase()) ||
+                                  skill.toLowerCase().includes(s.toLowerCase())
+                              );
                               return (
                                 <span
                                   key={skill}
