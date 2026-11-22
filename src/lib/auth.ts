@@ -50,11 +50,13 @@ const googleClientSecret = env("GOOGLE_CLIENT_SECRET");
 
 const githubClientId = env(
   "GITHUB_CLIENT_ID",
+  "Github_CLIENT_ID",
   "Github__CLIENT_ID"
 );
 
 const githubClientSecret = env(
   "GITHUB_CLIENT_SECRET",
+  "Github_CLIENT_SECRET",
   "Github__CLIENT_SECRET"
 );
 

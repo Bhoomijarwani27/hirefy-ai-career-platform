@@ -42,12 +42,16 @@ import { Button } from "@/components/ui/button";
 import {
   createBlankResume,
   HARVARD_FAS_OFFICIAL_SAMPLE,
+  HARVARD_COVER_LETTER_SAMPLE,
+  createSampleCoverLetter,
   ResumeData,
   CoverLetterData,
   saveResumeToStore,
   calculateAtsScore,
   extractSkillsList,
   parseResumeText,
+  getActiveResumeKey,
+  getStoredResumes,
 } from "@/lib/resume-storage";
 
 interface ResumeStudioProps {
@@ -124,6 +128,37 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
       }));
     }
   }, [userName, userEmail]);
+
+  // Restore stored resume and saved cover letter from localStorage on mount
+  useEffect(() => {
+    try {
+      const activeKey = getActiveResumeKey();
+      const stored = getStoredResumes(userName, userEmail);
+      if (activeKey && stored[activeKey]?.rawResumeData) {
+        setResume(stored[activeKey].rawResumeData!);
+      }
+      const savedCl = localStorage.getItem("hirefy_saved_cover_letter_v1");
+      if (savedCl) {
+        setCoverLetter(JSON.parse(savedCl));
+      }
+    } catch (e) {
+      console.error("Failed to restore studio state", e);
+    }
+  }, [userName, userEmail]);
+
+  // Auto-save cover letter to localStorage when user edits it
+  useEffect(() => {
+    try {
+      if (
+        coverLetter.companyName ||
+        coverLetter.roleTarget ||
+        coverLetter.openingParagraph ||
+        coverLetter.bodyParagraph1
+      ) {
+        localStorage.setItem("hirefy_saved_cover_letter_v1", JSON.stringify(coverLetter));
+      }
+    } catch {}
+  }, [coverLetter]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -461,7 +496,8 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
               type="button"
               onClick={() => {
                 setResume(HARVARD_FAS_OFFICIAL_SAMPLE);
-                showToast("Loaded official Harvard FAS sample for reference!");
+                setCoverLetter(HARVARD_COVER_LETTER_SAMPLE);
+                showToast("Loaded official Harvard FAS sample resume and cover letter!");
               }}
               className="rounded-xl border border-border bg-background px-3 py-1.5 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
             >
@@ -470,8 +506,29 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
             <button
               type="button"
               onClick={() => {
-                setResume(createBlankResume(userName, userEmail));
-                showToast("Cleared and started with a clean blank slate.");
+                if (activeTab === "cover-letter") {
+                  setCoverLetter({
+                    recipientName: "Hiring Manager",
+                    recipientTitle: "Recruiting Team",
+                    companyName: "",
+                    companyLocation: "",
+                    date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+                    roleTarget: "",
+                    salutation: "Dear Hiring Team,",
+                    openingParagraph: "",
+                    bodyParagraph1: "",
+                    bodyParagraph2: "",
+                    closingParagraph: "",
+                    signoff: "Sincerely,",
+                  });
+                  try {
+                    localStorage.removeItem("hirefy_saved_cover_letter_v1");
+                  } catch {}
+                  showToast("Cleared cover letter to a blank slate.");
+                } else {
+                  setResume(createBlankResume(userName, userEmail));
+                  showToast("Cleared resume to a clean blank slate.");
+                }
               }}
               className="rounded-xl border border-border bg-background px-3 py-1.5 font-semibold text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/20"
             >
@@ -1402,15 +1459,81 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                       </p>
                     </div>
 
-                    <Button
-                      type="button"
-                      onClick={() => setIsCoverLetterModalOpen(true)}
-                      className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5"
-                    >
-                      <Sparkles className="size-3.5" />
-                      AI Generate Letter
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const candidateName = resume.contact.fullName || userName || "Candidate";
+                          setCoverLetter(
+                            createSampleCoverLetter(
+                              candidateName,
+                              coverLetter.roleTarget || "Software Engineer",
+                              coverLetter.companyName || "Target Company"
+                            )
+                          );
+                          showToast("Loaded Harvard standard template into editor!");
+                        }}
+                        className="rounded-xl border border-border text-xs font-semibold h-8"
+                      >
+                        Load Template
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => setIsCoverLetterModalOpen(true)}
+                        className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5 h-8"
+                      >
+                        <Sparkles className="size-3.5" />
+                        AI Generate Letter
+                      </Button>
+                    </div>
                   </div>
+
+                  {!coverLetter.openingParagraph && !coverLetter.bodyParagraph1 && !coverLetter.companyName && (
+                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4 mb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Sparkles className="size-4 text-violet-600" />
+                            Cover Letter Editor is currently empty
+                          </h4>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            You can type your own, populate a Harvard template into these fields to edit, or generate one tailored to a job with AI.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const candidateName = resume.contact.fullName || userName || "Candidate";
+                              setCoverLetter(
+                                createSampleCoverLetter(
+                                  candidateName,
+                                  coverLetter.roleTarget || "Software Engineer",
+                                  coverLetter.companyName || "Target Company"
+                                )
+                              );
+                              showToast("Loaded template into your cover letter fields!");
+                            }}
+                            className="h-8 text-xs font-semibold"
+                          >
+                            Load Template
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setIsCoverLetterModalOpen(true)}
+                            className="h-8 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5"
+                          >
+                            <Sparkles className="size-3.5" />
+                            AI Generate
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -1829,48 +1952,80 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                       </div>
                     </div>
 
-                    {/* Date */}
-                    <div className="pt-2 text-[10.5pt]">{coverLetter.date}</div>
+                    {/* DYNAMIC EMPTY STATE VS COVER LETTER CONTENT */}
+                    {(() => {
+                      const isEntirelyEmpty =
+                        !coverLetter.openingParagraph.trim() &&
+                        !coverLetter.bodyParagraph1.trim() &&
+                        !coverLetter.bodyParagraph2.trim() &&
+                        !coverLetter.closingParagraph.trim() &&
+                        !coverLetter.companyName.trim() &&
+                        !coverLetter.roleTarget.trim();
 
-                    {/* Recipient Address Block */}
-                    <div className="text-[10.5pt] leading-tight text-zinc-800">
-                      <p className="font-bold text-zinc-900">{coverLetter.recipientName}</p>
-                      <p>{coverLetter.recipientTitle}</p>
-                      <p>{coverLetter.companyName || "Target Company"}</p>
-                      <p>{coverLetter.companyLocation || "City, State"}</p>
-                    </div>
+                      if (isEntirelyEmpty) {
+                        return (
+                          <div className="py-16 text-center text-zinc-400 border border-dashed border-zinc-200 rounded-lg my-6">
+                            <p className="text-sm font-semibold text-zinc-600">Your live cover letter is ready for your input.</p>
+                            <p className="mt-1 text-xs text-zinc-500 max-w-md mx-auto">
+                              Fill in your target company, role, and paragraphs on the left, click{" "}
+                              <span className="font-bold text-violet-600">Load Template</span> to edit a standard draft, or use{" "}
+                              <span className="font-bold text-violet-600">✨ AI Generate Letter</span> to tailor it from your resume.
+                            </p>
+                          </div>
+                        );
+                      }
 
-                    {/* Salutation */}
-                    <p className="font-bold text-zinc-900">{coverLetter.salutation}</p>
+                      return (
+                        <>
+                          {/* Date */}
+                          <div className="pt-2 text-[10.5pt]">{coverLetter.date}</div>
 
-                    {/* Letter Body Paragraphs */}
-                    <p className="text-justify text-[10pt] leading-relaxed">
-                      {coverLetter.openingParagraph ||
-                        `I am writing to express my enthusiastic interest in the ${coverLetter.roleTarget || "Target Role"} position at ${coverLetter.companyName || "your company"}. With my demonstrated record of delivering results and collaborating cross-functionally, I am excited about the opportunity to contribute to your team.`}
-                    </p>
+                          {/* Recipient Address Block */}
+                          <div className="text-[10.5pt] leading-tight text-zinc-800">
+                            <p className="font-bold text-zinc-900">{coverLetter.recipientName}</p>
+                            <p>{coverLetter.recipientTitle}</p>
+                            <p>{coverLetter.companyName || "Target Company"}</p>
+                            <p>{coverLetter.companyLocation || "City, State"}</p>
+                          </div>
 
-                    <p className="text-justify text-[10pt] leading-relaxed">
-                      {coverLetter.bodyParagraph1 ||
-                        "Throughout my career, I have taken ownership of critical deliverables, solving challenging problems and driving measurable outcomes. By applying rigorous methodologies and clear communication, I consistently exceed project benchmarks."}
-                    </p>
+                          {/* Salutation */}
+                          <p className="font-bold text-zinc-900">{coverLetter.salutation}</p>
 
-                    <p className="text-justify text-[10pt] leading-relaxed">
-                      {coverLetter.bodyParagraph2 ||
-                        `I am particularly drawn to ${coverLetter.companyName || "your organization"}'s mission and standard of excellence. My competencies align directly with your priorities, and I look forward to contributing immediately to your goals.`}
-                    </p>
+                          {/* Letter Body Paragraphs */}
+                          {coverLetter.openingParagraph && (
+                            <p className="text-justify text-[10pt] leading-relaxed">
+                              {coverLetter.openingParagraph}
+                            </p>
+                          )}
 
-                    <p className="text-justify text-[10pt] leading-relaxed">
-                      {coverLetter.closingParagraph ||
-                        "Thank you for your time and consideration. I would welcome the opportunity to discuss my qualifications further in an interview."}
-                    </p>
+                          {coverLetter.bodyParagraph1 && (
+                            <p className="text-justify text-[10pt] leading-relaxed">
+                              {coverLetter.bodyParagraph1}
+                            </p>
+                          )}
 
-                    {/* Signoff */}
-                    <div className="pt-4 space-y-4">
-                      <p>{coverLetter.signoff}</p>
-                      <p className="font-bold pt-4 text-zinc-900">
-                        {resume.contact.fullName || userName || "Candidate"}
-                      </p>
-                    </div>
+                          {coverLetter.bodyParagraph2 && (
+                            <p className="text-justify text-[10pt] leading-relaxed">
+                              {coverLetter.bodyParagraph2}
+                            </p>
+                          )}
+
+                          {coverLetter.closingParagraph && (
+                            <p className="text-justify text-[10pt] leading-relaxed">
+                              {coverLetter.closingParagraph}
+                            </p>
+                          )}
+
+                          {/* Signoff */}
+                          <div className="pt-4 space-y-4">
+                            <p>{coverLetter.signoff}</p>
+                            <p className="font-bold pt-4 text-zinc-900">
+                              {resume.contact.fullName || userName || "Candidate"}
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

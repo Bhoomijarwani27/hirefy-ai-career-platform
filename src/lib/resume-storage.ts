@@ -214,6 +214,46 @@ export const HARVARD_FAS_OFFICIAL_SAMPLE: ResumeData = {
   ],
 };
 
+export const HARVARD_COVER_LETTER_SAMPLE: CoverLetterData = {
+  recipientName: "Hiring Manager",
+  recipientTitle: "Operations Search Committee",
+  companyName: "Beacon Health Analytics",
+  companyLocation: "Boston, MA",
+  date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+  roleTarget: "Operations & Strategy Analyst",
+  salutation: "Dear Beacon Health Analytics Hiring Team,",
+  openingParagraph:
+    "I am writing to express my enthusiastic interest in the Operations & Strategy Analyst position at Beacon Health Analytics. With my foundation in quantitative economics from Harvard University and proven experience in data analysis, I have developed a rigorous, results-oriented approach that aligns directly with your team's commitment to analytical excellence.",
+  bodyParagraph1:
+    "Throughout my academic and professional training, I have prioritized solving complex operational challenges. In my previous role at the Harvard Institute for Quantitative Social Science, I synthesized longitudinal datasets across 45,000+ respondents and engineered automated data cleaning pipelines that accelerated research turnaround by 35%.",
+  bodyParagraph2:
+    "What excites me most about Beacon Health Analytics is your forward-thinking mission and standard of excellence. My competencies in Python, SQL, financial sensitivity modeling, and cross-functional communication align seamlessly with your priorities, and I look forward to contributing immediately to your upcoming deliverables.",
+  closingParagraph:
+    "Thank you for your time and consideration. I would welcome the opportunity to discuss how my qualifications, technical skills, and commitment to quality can benefit Beacon Health Analytics. I look forward to the possibility of an interview.",
+  signoff: "Sincerely,",
+};
+
+export function createSampleCoverLetter(
+  candidateName?: string,
+  role = "Software Engineer",
+  company = "Target Company"
+): CoverLetterData {
+  return {
+    recipientName: "Hiring Manager",
+    recipientTitle: "Recruiting Committee",
+    companyName: company,
+    companyLocation: "San Francisco, CA",
+    date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+    roleTarget: role,
+    salutation: `Dear ${company} Hiring Team,`,
+    openingParagraph: `I am writing to express my enthusiastic interest in the ${role} position at ${company}. With my demonstrated record of delivering results and collaborating cross-functionally, I am excited about the opportunity to contribute to your team.`,
+    bodyParagraph1: `Throughout my career, I have taken ownership of critical deliverables, solving challenging problems and driving measurable outcomes. By applying rigorous methodologies and clear communication, I consistently exceed project benchmarks.`,
+    bodyParagraph2: `I am particularly drawn to ${company}'s mission and standard of excellence. My competencies align directly with your priorities, and I look forward to contributing immediately to your goals.`,
+    closingParagraph: `Thank you for your time and consideration. I would welcome the opportunity to discuss my qualifications further in an interview.`,
+    signoff: "Sincerely,",
+  };
+}
+
 // Extracts skill tokens from a resume
 export function extractSkillsList(skillsObj: ResumeData["skills"]): string[] {
   const all = [
