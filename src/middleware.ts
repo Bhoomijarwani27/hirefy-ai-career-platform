@@ -21,11 +21,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
+  const hasAuthError =
+    request.nextUrl.searchParams.has("error") ||
+    request.nextUrl.searchParams.get("logout") === "true";
+
   if (
     sessionCookie &&
     isAuthPage &&
     !isExistingAccountRegistration &&
     !isLoginOAuthError &&
+    !hasAuthError &&
     !pathname.includes("verify-email") &&
     !pathname.includes("reset-password") &&
     !pathname.includes("oauth-success") &&

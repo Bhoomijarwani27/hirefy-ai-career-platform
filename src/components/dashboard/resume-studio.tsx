@@ -5,31 +5,28 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Award,
-  BookOpen,
   Briefcase,
-  Building,
   Check,
+  CheckCircle2,
   ChevronDown,
-  Code,
+  Copy,
   Download,
   Eye,
-  FileCheck2,
   FileText,
-  GraduationCap,
-  HelpCircle,
-  Layers,
-  Lightbulb,
+  Loader2,
   Mail,
+  Moon,
+  MoreHorizontal,
   PenLine,
   Plus,
   RefreshCw,
-  Search,
-  Send,
   Sparkles,
+  Star,
   Trash2,
-  TrendingUp,
   Upload,
   User,
   Wand2,
@@ -47,12 +44,38 @@ import {
   ResumeData,
   CoverLetterData,
   saveResumeToStore,
-  calculateAtsScore,
   extractSkillsList,
   parseResumeText,
   getActiveResumeKey,
   getStoredResumes,
+  ResumeSlot,
+  ResumeSlotId,
+  getResumeSlots,
+  saveSlotsToStorage,
+  getActiveSlotId,
+  setActiveSlotId,
+  saveResumeToSlot,
+  deleteResumeFromSlot,
+  duplicateResumeSlot,
+  getResumeDataForSlot,
+  importResumeToSlot,
+  CoverLetterSlot,
+  CoverLetterSlotId,
+  getCoverLetterSlots,
+  saveCoverLetterSlots,
+  getActiveCoverLetterSlotId,
+  setActiveCoverLetterSlotId,
+  saveCoverLetterToSlot,
+  deleteCoverLetterFromSlot,
+  duplicateCoverLetterSlot,
+  getCoverLetterDataForSlot,
 } from "@/lib/resume-storage";
+import {
+  generateResumeHtml,
+  generateCoverLetterHtml,
+  downloadResumeDirect,
+  downloadCoverLetterDirect,
+} from "@/lib/resume-pdf-template";
 
 interface ResumeStudioProps {
   userName?: string;
@@ -62,15 +85,49 @@ interface ResumeStudioProps {
 export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
   const router = useRouter();
 
-  // Active View Tab: 'resume' or 'cover-letter'
-  const [activeTab, setActiveTab] = useState<"resume" | "cover-letter">("resume");
+  // Active View Tab: 'overview' vs 'resume' (Builder) vs 'cover-letter' (Cover Letter Builder)
+  const [activeTab, setActiveTab] = useState<"overview" | "resume" | "cover-letter">("overview");
 
-  // User's Resume State (Initialized blank with user's real name/email)
+  // In Overview: 'resumes' (3 slots) vs 'cover-letters' (3 slots)
+  const [overviewCategory, setOverviewCategory] = useState<"resumes" | "cover-letters">("resumes");
+
+  // 3-Slot Resume Storage State
+  const [slots, setSlots] = useState<ResumeSlot[]>(() => getResumeSlots(userName, userEmail));
+  const [activeSlotId, setActiveSlotIdState] = useState<ResumeSlotId>("slot-1");
+
+  // 3-Slot Cover Letter Storage State
+  const [clSlots, setClSlots] = useState<CoverLetterSlot[]>(() => getCoverLetterSlots());
+  const [activeClSlotId, setActiveClSlotIdState] = useState<CoverLetterSlotId>("cl-slot-1");
+
+  // Dropdown menus
+  const [openMenuSlotId, setOpenMenuSlotId] = useState<string | null>(null);
+
+  // Modals
+  const [deleteConfirmSlot, setDeleteConfirmSlot] = useState<ResumeSlot | null>(null);
+  const [deleteConfirmClSlot, setDeleteConfirmClSlot] = useState<CoverLetterSlot | null>(null);
+  const [quickPreviewSlot, setQuickPreviewSlot] = useState<ResumeSlot | null>(null);
+  const [quickPreviewClSlot, setQuickPreviewClSlot] = useState<CoverLetterSlot | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importTargetSlot, setImportTargetSlot] = useState<ResumeSlotId>("slot-1");
+  const [importText, setImportText] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExtractingPdf, setIsExtractingPdf] = useState(false);
+  const [cachedParsedData, setCachedParsedData] = useState<ResumeData | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{
+    name: string;
+    size: number;
+    isPdf: boolean;
+    base64?: string;
+  } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  // Current Resume Data being edited in Builder
   const [resume, setResume] = useState<ResumeData>(() =>
     createBlankResume(userName, userEmail)
   );
 
-  // Cover Letter State (Dynamic based on user input)
+  // Current Cover Letter State being edited in Builder
   const [coverLetter, setCoverLetter] = useState<CoverLetterData>({
     recipientName: "Hiring Manager",
     recipientTitle: "Recruiting Team",
@@ -88,12 +145,9 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
 
   // UI States
   const [fontFamily, setFontFamily] = useState<"serif" | "sans">("serif");
-  const [zoomLevel, setZoomLevel] = useState(100);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importText, setImportText] = useState("");
 
-  // AI Bullet Point Suggestion Modal State
+  // AI Line Improver Modal State
   const [aiBulletModal, setAiBulletModal] = useState<{
     section: "experience" | "projects";
     entryIndex: number;
@@ -115,7 +169,38 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
   });
   const [isGeneratingCl, setIsGeneratingCl] = useState(false);
 
-  // Sync real authenticated user name and email
+  // Refresh slots on mount and storage updates
+  const refreshResumeSlots = () => {
+    const loadedSlots = getResumeSlots(userName, userEmail);
+    setSlots(loadedSlots);
+    const active = getActiveSlotId();
+    setActiveSlotIdState(active);
+  };
+
+  const refreshCoverLetterSlots = () => {
+    const loadedCl = getCoverLetterSlots();
+    setClSlots(loadedCl);
+    const activeCl = getActiveCoverLetterSlotId();
+    setActiveClSlotIdState(activeCl);
+  };
+
+  useEffect(() => {
+    refreshResumeSlots();
+    refreshCoverLetterSlots();
+
+    const handleResumeUpdate = () => refreshResumeSlots();
+    const handleClUpdate = () => refreshCoverLetterSlots();
+
+    window.addEventListener("hirefy-resume-storage-update", handleResumeUpdate);
+    window.addEventListener("hirefy-cover-letter-storage-update", handleClUpdate);
+
+    return () => {
+      window.removeEventListener("hirefy-resume-storage-update", handleResumeUpdate);
+      window.removeEventListener("hirefy-cover-letter-storage-update", handleClUpdate);
+    };
+  }, [userName, userEmail]);
+
+  // Sync user info into current resume
   useEffect(() => {
     if (userName || userEmail) {
       setResume((prev) => ({
@@ -129,42 +214,471 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
     }
   }, [userName, userEmail]);
 
-  // Restore stored resume and saved cover letter from localStorage on mount
-  useEffect(() => {
-    try {
-      const activeKey = getActiveResumeKey();
-      const stored = getStoredResumes(userName, userEmail);
-      if (activeKey && stored[activeKey]?.rawResumeData) {
-        setResume(stored[activeKey].rawResumeData!);
-      }
-      const savedCl = localStorage.getItem("hirefy_saved_cover_letter_v1");
-      if (savedCl) {
-        setCoverLetter(JSON.parse(savedCl));
-      }
-    } catch (e) {
-      console.error("Failed to restore studio state", e);
-    }
-  }, [userName, userEmail]);
-
-  // Auto-save cover letter to localStorage when user edits it
-  useEffect(() => {
-    try {
-      if (
-        coverLetter.companyName ||
-        coverLetter.roleTarget ||
-        coverLetter.openingParagraph ||
-        coverLetter.bodyParagraph1
-      ) {
-        localStorage.setItem("hirefy_saved_cover_letter_v1", JSON.stringify(coverLetter));
-      }
-    } catch {}
-  }, [coverLetter]);
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 4500);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Resume Slot Action Handlers
+  // ---------------------------------------------------------------------------
+
+  // Open Editor for a specific resume slot
+  const handleOpenEditorForSlot = (slotId: ResumeSlotId) => {
+    const slotData = getResumeDataForSlot(slotId, userName, userEmail);
+    setResume(slotData);
+    setActiveSlotIdState(slotId);
+    setActiveSlotId(slotId);
+    setActiveTab("resume");
+  };
+
+  // Create New Resume in Slot
+  const handleCreateNewInSlot = (targetSlotId?: ResumeSlotId) => {
+    let target = targetSlotId;
+    if (!target) {
+      const emptySlot = slots.find((s) => s.resume === null);
+      target = emptySlot ? emptySlot.slotId : "slot-1";
+    }
+
+    const blank = createBlankResume(userName, userEmail);
+    blank.title = target === "slot-1" ? "Master Resume" : target === "slot-2" ? "Targeted Resume" : "Specialized Resume";
+    setResume(blank);
+    setActiveSlotIdState(target);
+    setActiveSlotId(target);
+    setActiveTab("resume");
+    showToast(`Created new resume for Slot ${target.replace("slot-", "")}.`);
+  };
+
+  // Open Import Modal targeting a specific slot
+  const handleOpenImportModal = (targetSlotId?: ResumeSlotId) => {
+    if (targetSlotId) {
+      setImportTargetSlot(targetSlotId);
+    } else {
+      const emptySlot = slots.find((s) => s.resume === null);
+      setImportTargetSlot(emptySlot ? emptySlot.slotId : "slot-1");
+    }
+    setImportText("");
+    setUploadedFile(null);
+    setCachedParsedData(null);
+    setIsExtractingPdf(false);
+    setIsDragging(false);
+    setIsImportModalOpen(true);
+  };
+
+  // Browser-based PDF Text Extractor using Mozilla PDF.js via CDN
+  const extractTextFromPdfInBrowser = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      let pdfjsLib = (window as any).pdfjsLib;
+
+      if (!pdfjsLib) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          script.onload = () => {
+            const lib = (window as any).pdfjsLib;
+            if (lib) {
+              lib.GlobalWorkerOptions.workerSrc =
+                "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+              resolve();
+            } else {
+              reject(new Error("pdfjsLib not loaded"));
+            }
+          };
+          script.onerror = () => reject(new Error("Failed to load PDF.js"));
+          document.head.appendChild(script);
+        });
+        pdfjsLib = (window as any).pdfjsLib;
+      }
+
+      if (pdfjsLib) {
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        const pageTexts: string[] = [];
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          let pageStr = "";
+          let lastY: number | null = null;
+
+          for (const item of textContent.items) {
+            if ("str" in item) {
+              const currentY = item.transform ? item.transform[5] : null;
+              if (lastY !== null && currentY !== null && Math.abs(currentY - lastY) > 6) {
+                pageStr += "\n";
+              } else if (pageStr && !pageStr.endsWith(" ") && !pageStr.endsWith("\n")) {
+                pageStr += " ";
+              }
+              pageStr += item.str;
+              lastY = currentY;
+            }
+          }
+
+          if (pageStr.trim()) {
+            pageTexts.push(pageStr.trim());
+          }
+        }
+
+        const combined = pageTexts.join("\n\n");
+        if (combined.trim().length >= 20) {
+          return combined;
+        }
+      }
+    } catch (err) {
+      console.warn("Client PDF.js attempt failed, fallback to server:", err);
+    }
+    return "";
+  };
+
+  // Handle file selection (PDF, TXT, MD, JSON)
+  const handleFileObject = async (file: File) => {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (isPdf) {
+      setIsExtractingPdf(true);
+      setImportText("Reading and extracting text from PDF...");
+
+      // 1. Try browser-based PDF extraction first (instant, high-fidelity)
+      let browserText = "";
+      try {
+        browserText = await extractTextFromPdfInBrowser(file);
+      } catch {}
+
+      if (browserText && browserText.trim().length >= 25) {
+        setImportText(browserText);
+        setUploadedFile({
+          name: file.name,
+          size: file.size,
+          isPdf: true,
+        });
+        setIsExtractingPdf(false);
+        showToast(`Extracted resume text from "${file.name}"! Click Import to save.`);
+        return;
+      }
+
+      // 2. Fall back to server-side extraction & AI
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const base64 = evt.target?.result as string;
+        setUploadedFile({
+          name: file.name,
+          size: file.size,
+          isPdf: true,
+          base64,
+        });
+
+        try {
+          const res = await fetch("/api/resume/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pdfBase64: base64,
+              fileName: file.name,
+              defaultName: userName,
+              defaultEmail: userEmail,
+            }),
+          });
+          const json = await res.json();
+          if (json.success) {
+            if (json.extractedText) {
+              setImportText(json.extractedText);
+            } else if (json.data) {
+              const d = json.data;
+              const preview = `${d.contact?.fullName || ""}\n${d.contact?.email || ""}${d.contact?.phone ? ` | ${d.contact.phone}` : ""}${d.contact?.location ? ` | ${d.contact.location}` : ""}\n\nEXPERIENCE\n${(d.experience || []).map((e: any) => `${e.role} at ${e.company} (${e.startDate || ""} - ${e.endDate || ""})\n${(e.bullets || []).map((b: string) => `• ${b}`).join("\n")}`).join("\n\n")}\n\nEDUCATION\n${(d.education || []).map((ed: any) => `${ed.degree} - ${ed.institution} (${ed.graduationDate || ""})`).join("\n")}\n\nSKILLS\n${d.skills?.technicalLanguages || ""}, ${d.skills?.frameworksAndTools || ""}`;
+              setImportText(preview);
+            }
+            if (json.data) {
+              setCachedParsedData(json.data);
+            }
+            showToast(`Loaded "${file.name}"! Click Import below to save.`);
+          } else {
+            setImportText("");
+            showToast(json.error || "Could not read text from this PDF. Please paste resume text.");
+          }
+        } catch {
+          setImportText("");
+          showToast("Error reading PDF. Please paste resume text.");
+        } finally {
+          setIsExtractingPdf(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const content = String(evt.target?.result || "");
+        setUploadedFile({
+          name: file.name,
+          size: file.size,
+          isPdf: false,
+        });
+        setImportText(content);
+        setCachedParsedData(null);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // Save current resume into active slot
+  const handleSaveCurrentResume = (andNotify = true) => {
+    const updated = saveResumeToSlot(activeSlotId, resume, resume.title);
+    refreshResumeSlots();
+    if (andNotify) {
+      showToast(`Saved "${updated.title}" to Slot ${activeSlotId.replace("slot-", "")}!`);
+    }
+  };
+
+  // Delete resume from slot
+  const handleDeleteSlot = (slotId: ResumeSlotId) => {
+    deleteResumeFromSlot(slotId);
+    refreshResumeSlots();
+    setDeleteConfirmSlot(null);
+    showToast(`Cleared Slot ${slotId.replace("slot-", "")}.`);
+  };
+
+  // Set slot as primary
+  const handleSetPrimary = (slotId: ResumeSlotId) => {
+    const updated = slots.map((s) => ({
+      ...s,
+      isPrimary: s.slotId === slotId,
+    }));
+    saveSlotsToStorage(updated);
+    setActiveSlotId(slotId);
+    refreshResumeSlots();
+    showToast(`Slot ${slotId.replace("slot-", "")} is now your primary resume.`);
+  };
+
+  // Duplicate resume to first available empty slot
+  const handleDuplicateToAvailableSlot = (sourceSlotId: ResumeSlotId) => {
+    const emptySlot = slots.find((s) => s.resume === null);
+    if (!emptySlot) {
+      showToast("All 3 resume slots are currently in use. Delete one to duplicate.");
+      return;
+    }
+    duplicateResumeSlot(sourceSlotId, emptySlot.slotId);
+    refreshResumeSlots();
+    showToast(`Duplicated to Slot ${emptySlot.slotNumber}!`);
+  };
+
+  // Import text or PDF submission with Server AI & Fallback Client Parser
+  const handleImportSubmit = async () => {
+    if (isImporting || isExtractingPdf) return;
+    const hasText = !!importText.trim();
+    const hasPdf = !!uploadedFile?.base64;
+    const hasCached = !!cachedParsedData;
+
+    if (!hasText && !hasPdf && !hasCached) {
+      showToast("Please provide resume text or upload a file.");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      let parsedData: ResumeData | null = cachedParsedData;
+
+      // If we don't have cached data from earlier PDF extraction, parse now
+      if (!parsedData) {
+        try {
+          const res = await fetch("/api/resume/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: importText,
+              pdfBase64: uploadedFile?.base64 || undefined,
+              fileName: uploadedFile?.name,
+              defaultName: userName,
+              defaultEmail: userEmail,
+            }),
+          });
+
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data) {
+              parsedData = json.data;
+            }
+          }
+        } catch (aiErr) {
+          console.warn("AI parse API call skipped or errored:", aiErr);
+        }
+
+        // Fall back to client parser on importText if available
+        if (!parsedData && importText.trim().length >= 15) {
+          parsedData = parseResumeText(importText, userName, userEmail);
+        }
+      }
+
+      // Guard: Ensure parsedData actually contains meaningful content
+      const hasRealContent =
+        parsedData &&
+        (parsedData.experience.some((e) => e.role || e.company || (e.bullets && e.bullets.length > 0 && e.bullets[0])) ||
+          parsedData.education.some((e) => e.institution || e.degree) ||
+          parsedData.skills.technicalLanguages ||
+          importText.trim().length > 30);
+
+      if (!parsedData || !hasRealContent) {
+        showToast("Could not extract resume content from this file. Please paste your resume text directly.");
+        setIsImporting(false);
+        return;
+      }
+
+      // Ensure valid structure & titles
+      if (!parsedData.id) parsedData.id = `resume-${Date.now()}`;
+      if (!parsedData.title) {
+        parsedData.title = uploadedFile?.name
+          ? uploadedFile.name.replace(/\.[^/.]+$/, "")
+          : `${parsedData.contact?.fullName || userName || "My"} — Resume`;
+      }
+
+      // Save to target slot
+      saveResumeToSlot(importTargetSlot, parsedData, parsedData.title);
+
+      // If current active builder slot is this slot, update React state immediately!
+      if (activeSlotId === importTargetSlot) {
+        setResume(parsedData);
+      }
+
+      refreshResumeSlots();
+      setIsImportModalOpen(false);
+      setImportText("");
+      setUploadedFile(null);
+      setCachedParsedData(null);
+      showToast(`Imported ${uploadedFile?.name || "full resume"} into Slot ${importTargetSlot.replace("slot-", "")}!`);
+    } catch (err) {
+      console.error("Resume import error:", err);
+      showToast("Could not parse resume. Please check text or file.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Connect to Job Search
+  const handleSaveAndUseInJobSearch = () => {
+    handleSaveCurrentResume(false);
+    showToast("Connecting your resume to AI Job Search...");
+    setTimeout(() => {
+      router.push("/seeker/jobs");
+    }, 800);
+  };
+
+  // Download Current Active Resume or Cover Letter directly as a PDF file
+  const handleDownloadCurrentPdf = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    showToast("Downloading PDF...");
+    try {
+      if (activeTab === "cover-letter") {
+        downloadCoverLetterDirect(
+          coverLetter,
+          resume.contact.fullName || userName || "Candidate",
+          resume.contact,
+          undefined,
+          fontFamily
+        );
+        showToast("Cover letter PDF downloaded!");
+      } else {
+        downloadResumeDirect(resume, undefined, fontFamily);
+        showToast("Resume PDF downloaded successfully!");
+      }
+    } catch (err) {
+      console.error("PDF download error:", err);
+      showToast("Could not download PDF. Please try again.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  // Download PDF directly from any of the 3 slots in Overview
+  const handleDownloadSlotPdf = async (slotId: ResumeSlotId) => {
+    const targetSlot = slots.find((s) => s.slotId === slotId);
+    if (!targetSlot?.resume?.rawResumeData) {
+      showToast("Slot is empty. Create or import a resume first.");
+      return;
+    }
+    showToast(`Downloading PDF for ${targetSlot.title}...`);
+    try {
+      downloadResumeDirect(targetSlot.resume.rawResumeData, undefined, fontFamily);
+      showToast(`Downloaded "${targetSlot.title}" PDF!`);
+    } catch (err) {
+      console.error("Slot PDF download error:", err);
+      showToast("Could not download PDF for this slot.");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Cover Letter Action Handlers
+  // ---------------------------------------------------------------------------
+
+  // Open Cover Letter editor for a slot
+  const handleOpenCoverLetterForSlot = (slotId: CoverLetterSlotId) => {
+    const clData = getCoverLetterDataForSlot(slotId);
+    setCoverLetter(clData);
+    setActiveClSlotIdState(slotId);
+    setActiveCoverLetterSlotId(slotId);
+    setActiveTab("cover-letter");
+  };
+
+  // Create New Cover Letter in Slot
+  const handleCreateNewCoverLetter = (targetSlotId?: CoverLetterSlotId) => {
+    let target = targetSlotId;
+    if (!target) {
+      const emptySlot = clSlots.find((s) => s.data === null);
+      target = emptySlot ? emptySlot.slotId : "cl-slot-1";
+    }
+
+    const blank: CoverLetterData = {
+      recipientName: "Hiring Manager",
+      recipientTitle: "Recruiting Team",
+      companyName: "",
+      companyLocation: "",
+      date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+      roleTarget: "",
+      salutation: "Dear Hiring Team,",
+      openingParagraph: "",
+      bodyParagraph1: "",
+      bodyParagraph2: "",
+      closingParagraph: "",
+      signoff: "Sincerely,",
+    };
+
+    setCoverLetter(blank);
+    setActiveClSlotIdState(target);
+    setActiveCoverLetterSlotId(target);
+    setActiveTab("cover-letter");
+    showToast(`Created blank cover letter for Slot ${target.replace("cl-slot-", "")}.`);
+  };
+
+  // Save current cover letter into active cover letter slot
+  const handleSaveCurrentCoverLetter = (andNotify = true) => {
+    const title = coverLetter.companyName
+      ? `${coverLetter.roleTarget || "Role"} at ${coverLetter.companyName}`
+      : "My Cover Letter";
+    const updated = saveCoverLetterToSlot(activeClSlotId, coverLetter, title);
+    refreshCoverLetterSlots();
+    if (andNotify) {
+      showToast(`Saved "${updated.title}" to Cover Letter Slot ${activeClSlotId.replace("cl-slot-", "")}!`);
+    }
+  };
+
+  // Delete cover letter from slot
+  const handleDeleteCoverLetterSlot = (slotId: CoverLetterSlotId) => {
+    deleteCoverLetterFromSlot(slotId);
+    refreshCoverLetterSlots();
+    setDeleteConfirmClSlot(null);
+    showToast(`Cleared Cover Letter Slot ${slotId.replace("cl-slot-", "")}.`);
+  };
+
+  // Duplicate cover letter
+  const handleDuplicateCoverLetter = (sourceSlotId: CoverLetterSlotId) => {
+    const emptySlot = clSlots.find((s) => s.data === null);
+    if (!emptySlot) {
+      showToast("All 3 cover letter slots are currently full. Delete one to duplicate.");
+      return;
+    }
+    duplicateCoverLetterSlot(sourceSlotId, emptySlot.slotId);
+    refreshCoverLetterSlots();
+    showToast(`Duplicated cover letter to Slot ${emptySlot.slotNumber}!`);
   };
 
   // Section Reordering (Up / Down)
@@ -181,11 +695,10 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
     showToast(`Moved ${temp.toUpperCase()} ${direction}`);
   };
 
-  // Real-time ATS Health Score
-  const atsScore = calculateAtsScore(resume);
+  const filledResumesCount = slots.filter((s) => s.resume !== null).length;
+  const filledCoverLettersCount = clSlots.filter((s) => s.data !== null).length;
 
   // Real-World Context-Aware AI Line Improver
-  // Analyzes user's ACTUAL input and role without assuming arbitrary CA/MBA/BTech tracks
   const generateLineImprovements = (rawText: string, roleTitle: string, customInstruction?: string) => {
     const text = rawText.trim();
     const cleanCore = text
@@ -202,13 +715,9 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
       ];
     }
 
-    // Harvard FAS XYZ Formula: Accomplished [X] as measured by [Y], by doing [Z]
     return [
-      // 1. Metric & Impact Focus
       `Spearheaded ${cleanCore}, driving a 25% increase in operational efficiency through systematic execution and cross-functional alignment.`,
-      // 2. Strong Harvard Action Verb Focus
       `Orchestrated end-to-end implementation of ${cleanCore}, streamlining deliverables and reducing workflow turnaround by 30%.`,
-      // 3. Concise & ATS-Optimized Direct Phrasing
       `Engineered scalable deliverables for ${cleanCore}, establishing rigorous quality benchmarks and mitigating delivery discrepancies.`,
     ];
   };
@@ -275,7 +784,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
     }
 
     setAiBulletModal(null);
-    showToast("Applied Harvard-improved line to your resume!");
+    showToast("Applied improved line to your resume!");
   };
 
   // AI Cover Letter Generator based on User's ACTUAL Resume Content
@@ -290,7 +799,6 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
       const targetRole = clForm.targetRole;
       const targetCompany = clForm.targetCompany;
 
-      // Extract real user accomplishments from their actual resume
       const primaryEdu = resume.education[0]?.degree
         ? `${resume.education[0].degree} from ${resume.education[0].institution || "University"}`
         : "my academic and professional training";
@@ -311,7 +819,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
 
       const closing = `Thank you for your time and consideration. I welcome the opportunity to discuss how my qualifications, technical skills, and commitment to quality can benefit ${targetCompany}. I look forward to the possibility of an interview.`;
 
-      setCoverLetter({
+      const generatedCl: CoverLetterData = {
         recipientName: "Hiring Manager",
         recipientTitle: `${targetRole} Search Committee`,
         companyName: targetCompany,
@@ -324,50 +832,17 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
         bodyParagraph2: body2,
         closingParagraph: closing,
         signoff: "Sincerely,",
-      });
+      };
+
+      setCoverLetter(generatedCl);
+      saveCoverLetterToSlot(activeClSlotId, generatedCl, `${targetRole} at ${targetCompany}`);
+      refreshCoverLetterSlots();
 
       setIsGeneratingCl(false);
       setIsCoverLetterModalOpen(false);
       setActiveTab("cover-letter");
-      showToast(`Generated Harvard-standard cover letter for ${targetCompany}!`);
+      showToast(`Generated and saved cover letter for ${targetCompany}!`);
     }, 600);
-  };
-
-  // Import Resume Logic
-  const handleImportSubmit = () => {
-    if (!importText.trim()) return;
-    try {
-      const parsed = parseResumeText(importText, userName, userEmail);
-      setResume(parsed);
-      setIsImportModalOpen(false);
-      setImportText("");
-      showToast("Resume parsed and imported successfully into Harvard standard format!");
-    } catch {
-      showToast("Could not parse text. Please check format.");
-    }
-  };
-
-  // Connect to Job Search
-  const handleSaveAndUseInJobSearch = () => {
-    const candidateName = resume.contact.fullName || userName || "Candidate";
-    const fileName = `${candidateName} — Master Resume.pdf`;
-    const skillsList = extractSkillsList(resume.skills);
-
-    saveResumeToStore({
-      name: fileName,
-      candidateName,
-      ats: atsScore,
-      years: "3+ years",
-      skillsCount: skillsList.length || 6,
-      updated: "Just updated in Studio",
-      knownSkills: skillsList.length > 0 ? skillsList : ["Project Management", "Problem Solving", "Communication"],
-      rawResumeData: resume,
-    });
-
-    showToast("Saved! Connecting your resume to AI Job Search...");
-    setTimeout(() => {
-      router.push("/seeker/jobs");
-    }, 900);
   };
 
   return (
@@ -382,583 +857,1157 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
         </div>
       )}
 
-      {/* Top Action Bar */}
-      <section className="sticky top-0 z-30 border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1520px] flex-wrap items-center justify-between gap-3">
-          {/* Left: Title & ATS Score Badge */}
-          <div className="flex items-center gap-3">
-            <Link
-              href="/seeker/dashboard"
-              className="inline-flex size-8 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-violet-300 hover:text-foreground"
-            >
-              <ChevronDown className="size-4 rotate-90" />
-            </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold sm:text-base">
-                  Harvard FAS Resume & Cover Letter Studio
-                </h1>
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/80 dark:text-violet-300">
-                  ATS Verified
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground hidden sm:block">
-                Standard single-column, reverse-chronological Harvard layout.
-              </p>
+      {/* ========================================================================= */}
+      {/* 1. OVERVIEW PAGE VIEW: 3-RESUME & 3-COVER LETTER STORE */}
+      {/* ========================================================================= */}
+      {activeTab === "overview" && (
+        <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-9 lg:px-8 space-y-7">
+          {/* Breadcrumb & Theme toggle */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Link href="/seeker/dashboard" className="hover:text-foreground transition-colors">
+                Workspace
+              </Link>
+              <span>&gt;</span>
+              <span className="text-foreground font-semibold">Resume Studio</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex size-7 items-center justify-center rounded-lg hover:bg-muted text-muted-foreground transition-colors">
+                <Moon className="size-4" />
+              </span>
             </div>
           </div>
 
-          {/* Center Tabs: Resume vs Cover Letter */}
-          <div className="inline-flex rounded-xl border border-border bg-card p-1 shadow-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab("resume")}
-              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "resume"
-                  ? "bg-foreground text-background shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <FileText className="size-3.5" />
-              Resume Builder
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("cover-letter")}
-              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
-                activeTab === "cover-letter"
-                  ? "bg-foreground text-background shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Mail className="size-3.5" />
-              Cover Letter
-            </button>
-          </div>
+          {/* Hero Banner: Title, Subtitle, and Capacity Card */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-6">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                <span className="size-2 rounded-full bg-violet-600 animate-pulse" />
+                <span>YOUR NEXT CHAPTER</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+                Resume Studio<span className="text-violet-600">.</span>
+              </h1>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Create, manage, and tailor your resumes and cover letters for your next opportunity.
+              </p>
+            </div>
 
-          {/* Right Action Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsImportModalOpen(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hover:border-violet-300 hover:bg-muted/50"
-            >
-              <Upload className="size-3.5 text-muted-foreground" />
-              <span>Import Resume</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFontFamily(fontFamily === "serif" ? "sans" : "serif")}
-              title="Toggle Harvard Serif vs Modern Sans"
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hover:bg-muted/50"
-            >
-              <PenLine className="size-3.5 text-muted-foreground" />
-              <span className="hidden sm:inline">
-                {fontFamily === "serif" ? "Harvard Serif" : "Modern Sans"}
+            {/* Capacity Card: Shows filled slots for current category */}
+            <div className="rounded-2xl border border-border bg-card p-3.5 shadow-xs flex items-center gap-3 shrink-0 self-start sm:self-auto">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-950/80 dark:text-violet-300">
+                {overviewCategory === "resumes" ? <FileText className="size-4" /> : <Mail className="size-4" />}
               </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hover:bg-muted/50"
-            >
-              <Download className="size-3.5 text-muted-foreground" />
-              <span>PDF</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveAndUseInJobSearch}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 px-4 text-xs font-bold text-white shadow-xs hover:brightness-105 active:scale-[0.98]"
-            >
-              <Zap className="size-3.5" />
-              <span>Use in Job Search</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Main Workspace */}
-      <main className="mx-auto w-full max-w-[1520px] px-4 py-6 sm:px-6 lg:px-8">
-        {/* Helper Strip: Official Harvard Guidelines & Reset */}
-        <div className="mb-6 rounded-2xl border border-border bg-card p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-violet-600" />
-            <span className="text-xs text-muted-foreground">
-              Based on the official <strong className="text-foreground">Harvard FAS Career Services standard</strong>: single-column, no photos/ratings, bullet points structured with action verbs & measurable results.
-            </span>
+              <div className="space-y-1.5 min-w-[130px]">
+                <div className="text-xs font-bold text-foreground">
+                  {overviewCategory === "resumes"
+                    ? `${filledResumesCount} of 3 resumes`
+                    : `${filledCoverLettersCount} of 3 cover letters`}
+                </div>
+                {/* 3 segmented indicator bars matching Lovable design */}
+                <div className="flex items-center gap-1.5 w-28">
+                  {[0, 1, 2].map((idx) => {
+                    const count =
+                      overviewCategory === "resumes" ? filledResumesCount : filledCoverLettersCount;
+                    return (
+                      <div
+                        key={idx}
+                        className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                          idx < count ? "bg-violet-600" : "bg-muted dark:bg-zinc-800"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs shrink-0">
+          {/* Navigation Pill Bar: Matching Reference Action Bar */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
             <button
               type="button"
               onClick={() => {
-                setResume(HARVARD_FAS_OFFICIAL_SAMPLE);
-                setCoverLetter(HARVARD_COVER_LETTER_SAMPLE);
-                showToast("Loaded official Harvard FAS sample resume and cover letter!");
+                setOverviewCategory("resumes");
+                setActiveTab("overview");
               }}
-              className="rounded-xl border border-border bg-background px-3 py-1.5 font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                overviewCategory === "resumes"
+                  ? "bg-violet-100 text-violet-800 dark:bg-violet-950/80 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-xs"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
             >
-              Preview Harvard FAS Sample
+              <FileText className="size-4" />
+              <span>My Resumes</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => handleCreateNewInSlot()}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            >
+              <Sparkles className="size-4 text-violet-600" />
+              <span>Create Resume</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
-                if (activeTab === "cover-letter") {
-                  setCoverLetter({
-                    recipientName: "Hiring Manager",
-                    recipientTitle: "Recruiting Team",
-                    companyName: "",
-                    companyLocation: "",
-                    date: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-                    roleTarget: "",
-                    salutation: "Dear Hiring Team,",
-                    openingParagraph: "",
-                    bodyParagraph1: "",
-                    bodyParagraph2: "",
-                    closingParagraph: "",
-                    signoff: "Sincerely,",
-                  });
-                  try {
-                    localStorage.removeItem("hirefy_saved_cover_letter_v1");
-                  } catch {}
-                  showToast("Cleared cover letter to a blank slate.");
-                } else {
-                  setResume(createBlankResume(userName, userEmail));
-                  showToast("Cleared resume to a clean blank slate.");
-                }
+                const targetSlot = slots.find((s) => s.resume !== null) || slots[0];
+                handleOpenEditorForSlot(targetSlot.slotId);
+                showToast("Opened in Builder with AI writing and bullet point improver ready!");
               }}
-              className="rounded-xl border border-border bg-background px-3 py-1.5 font-semibold text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/20"
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
             >
-              Clear to Blank
+              <Wand2 className="size-4 text-emerald-600" />
+              <span>Improve Resume with AI</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const targetSlot = slots.find((s) => s.resume !== null) || slots[0];
+                handleOpenEditorForSlot(targetSlot.slotId);
+                showToast("Tailor your resume role title, profile & skills for target jobs in the editor!");
+              }}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+            >
+              <Briefcase className="size-4 text-indigo-600" />
+              <span>Create for a Specific Job</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setOverviewCategory("cover-letters");
+                setActiveTab("overview");
+              }}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                overviewCategory === "cover-letters"
+                  ? "bg-violet-100 text-violet-800 dark:bg-violet-950/80 dark:text-violet-300 border border-violet-200 dark:border-violet-800 shadow-xs"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <Mail className="size-4" />
+              <span>My Cover Letters ({filledCoverLettersCount}/3)</span>
             </button>
           </div>
-        </div>
 
-        {/* Split Screen Grid: Form on Left, Live 8.5" x 11" Document on Right */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(480px,1.05fr)] xl:grid-cols-[minmax(0,1fr)_minmax(540px,1.15fr)]">
-          {/* ========================================================================= */}
-          {/* LEFT COLUMN: INTERACTIVE FORM EDITOR */}
-          {/* ========================================================================= */}
-          <div className="space-y-6">
-            {activeTab === "resume" ? (
-              <>
-                {/* 1. Contact & Header Information */}
-                <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
-                  <div className="flex items-center justify-between border-b border-border/70 pb-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <User className="size-4 text-violet-600" />
-                      <h2 className="text-sm font-bold text-foreground">Header & Contact Info</h2>
-                    </div>
-                    <span className="text-xs text-muted-foreground">Harvard standard top banner</span>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        value={resume.contact.fullName}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            contact: { ...prev.contact, fullName: e.target.value },
-                          }))
-                        }
-                        placeholder="e.g. Bhoomi Jarwani"
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Professional Email
-                      </label>
-                      <input
-                        type="email"
-                        value={resume.contact.email}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            contact: { ...prev.contact, email: e.target.value },
-                          }))
-                        }
-                        placeholder="e.g. bhoomi@example.com"
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        value={resume.contact.phone}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            contact: { ...prev.contact, phone: e.target.value },
-                          }))
-                        }
-                        placeholder="e.g. (555) 019-2834"
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Location (City, State / Country)
-                      </label>
-                      <input
-                        type="text"
-                        value={resume.contact.location}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            contact: { ...prev.contact, location: e.target.value },
-                          }))
-                        }
-                        placeholder="e.g. San Francisco, CA or Mumbai, India"
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        LinkedIn Profile URL
-                      </label>
-                      <input
-                        type="text"
-                        value={resume.contact.linkedin}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            contact: { ...prev.contact, linkedin: e.target.value },
-                          }))
-                        }
-                        placeholder="linkedin.com/in/username"
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Portfolio / GitHub / Website
-                      </label>
-                      <input
-                        type="text"
-                        value={resume.contact.githubOrPortfolio}
-                        onChange={(e) =>
-                          setResume((prev) => ({
-                            ...prev,
-                            contact: { ...prev.contact, githubOrPortfolio: e.target.value },
-                          }))
-                        }
-                        placeholder="portfolio.dev or github.com/username"
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                      />
-                    </div>
-                  </div>
+          {/* =================================================================== */}
+          {/* CATEGORY 1: MY RESUMES (3 SLOTS) */}
+          {/* =================================================================== */}
+          {overviewCategory === "resumes" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-bold text-foreground">My Resumes</h2>
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-extrabold text-muted-foreground">
+                    {filledResumesCount}
+                  </span>
                 </div>
 
-                {/* 2. DYNAMICALLY REORDERABLE SECTIONS */}
-                {resume.sectionOrder.map((sectionKey, sIdx) => {
-                  return (
-                    <div
-                      key={sectionKey}
-                      className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all"
-                    >
-                      {/* Section Header with Move Up/Down Controls */}
-                      <div className="flex items-center justify-between border-b border-border/70 pb-3 mb-4">
-                        <div className="flex items-center gap-2">
-                          <span className="flex size-6 items-center justify-center rounded-lg bg-violet-100 text-[11px] font-bold text-violet-700 dark:bg-violet-900/60 dark:text-violet-300">
-                            {sIdx + 1}
-                          </span>
-                          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
-                            {sectionKey === "education" && "Education"}
-                            {sectionKey === "experience" && "Work Experience"}
-                            {sectionKey === "projects" && "Projects"}
-                            {sectionKey === "skills" && "Skills & Competencies"}
-                            {sectionKey === "leadership" && "Leadership & Activities"}
-                          </h2>
-                        </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenImportModal()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold text-foreground hover:bg-muted hover:border-violet-400 shadow-xs transition-all"
+                >
+                  <ArrowUp className="size-3.5 text-muted-foreground" />
+                  <span>Import Resume</span>
+                </button>
+              </div>
 
-                        {/* Move Up / Down Buttons */}
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => moveSection(sIdx, "up")}
-                            disabled={sIdx === 0}
-                            title="Move section up"
-                            className="inline-flex size-7 items-center justify-center rounded-lg border border-border text-xs font-semibold text-muted-foreground transition-colors hover:border-violet-400 hover:text-foreground disabled:opacity-30 disabled:hover:border-border"
-                          >
-                            <ArrowUp className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSection(sIdx, "down")}
-                            disabled={sIdx === resume.sectionOrder.length - 1}
-                            title="Move section down"
-                            className="inline-flex size-7 items-center justify-center rounded-lg border border-border text-xs font-semibold text-muted-foreground transition-colors hover:border-violet-400 hover:text-foreground disabled:opacity-30 disabled:hover:border-border"
-                          >
-                            <ArrowDown className="size-3.5" />
-                          </button>
-                        </div>
-                      </div>
+              {/* 3-Resume Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
+                {slots.map((slot) => {
+                  // FILLED RESUME SLOT
+                  if (slot.resume !== null) {
+                    return (
+                      <div
+                        key={slot.slotId}
+                        className="group rounded-2xl border border-border bg-card p-4 flex flex-col justify-between hover:shadow-lg hover:border-violet-300/70 dark:hover:border-violet-700/70 transition-all relative"
+                      >
+                        {/* Visual Preview Container */}
+                        <div
+                          onClick={() => handleOpenEditorForSlot(slot.slotId)}
+                          className="bg-slate-100/80 dark:bg-zinc-800/40 rounded-xl p-4 flex items-center justify-center relative min-h-[350px] cursor-pointer overflow-hidden transition-all group-hover:bg-slate-100 dark:group-hover:bg-zinc-800/60"
+                        >
+                          {/* Paper Sheet Preview */}
+                          <div className="bg-white text-zinc-900 rounded-md shadow-md border border-zinc-200/90 p-4 aspect-[1/1.3] w-full max-w-[230px] overflow-hidden flex flex-col justify-between select-none pointer-events-none transform group-hover:scale-[1.02] transition-transform">
+                            {/* Header */}
+                            <div className="border-b border-zinc-300 pb-1.5 mb-1.5">
+                              <h4 className="text-[11px] font-extrabold tracking-wider uppercase text-zinc-950 truncate">
+                                {slot.resume.candidateName || userName || "Candidate"}
+                              </h4>
+                              <p className="text-[8px] font-bold text-zinc-700 truncate">
+                                {slot.title}
+                              </p>
+                              <p className="text-[6.5px] text-zinc-500 truncate">
+                                {slot.resume.rawResumeData?.contact?.location || "Location"} •{" "}
+                                {slot.resume.rawResumeData?.contact?.email || userEmail || "email"}
+                              </p>
+                            </div>
 
-                      {/* SECTION 1: EDUCATION */}
-                      {sectionKey === "education" && (
-                        <div className="space-y-4">
-                          {resume.education.map((edu, eduIdx) => (
-                            <div
-                              key={edu.id}
-                              className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-3"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-muted-foreground">
-                                  Entry #{eduIdx + 1}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setResume((prev) => ({
-                                      ...prev,
-                                      education: prev.education.filter((_, i) => i !== eduIdx),
-                                    }))
-                                  }
-                                  className="text-muted-foreground hover:text-rose-500"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </button>
+                            {/* Profile Snippet */}
+                            <div className="space-y-1 mb-1">
+                              <div className="text-[7px] font-bold uppercase tracking-wider text-zinc-800">
+                                Profile
                               </div>
-
-                              <div className="grid gap-2.5 sm:grid-cols-2">
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Institution / University
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={edu.institution}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.education];
-                                        updated[eduIdx] = { ...updated[eduIdx], institution: val };
-                                        return { ...prev, education: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. University of California, Berkeley"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
-                                </div>
-
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Degree & Major
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={edu.degree}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.education];
-                                        updated[eduIdx] = { ...updated[eduIdx], degree: val };
-                                        return { ...prev, education: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. B.S. in Computer Science or Chartered Accountant"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
-                                </div>
-
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Location (City, State / Country)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={edu.location}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.education];
-                                        updated[eduIdx] = { ...updated[eduIdx], location: val };
-                                        return { ...prev, education: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. Berkeley, CA"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
-                                </div>
-
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Graduation Date / Year
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={edu.graduationDate}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.education];
-                                        updated[eduIdx] = { ...updated[eduIdx], graduationDate: val };
-                                        return { ...prev, education: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. May 2025"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
-                                </div>
-                              </div>
-
-                              <div>
-                                <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                  Honors / GPA / Relevant Coursework
-                                </label>
-                                <input
-                                  type="text"
-                                  value={edu.details || ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setResume((prev) => {
-                                      const updated = [...prev.education];
-                                      updated[eduIdx] = { ...updated[eduIdx], details: val };
-                                      return { ...prev, education: updated };
-                                    });
-                                  }}
-                                  placeholder="e.g. GPA 3.9/4.0. Coursework: Data Structures, Corporate Finance, Microeconomics."
-                                  className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                />
+                              <div className="space-y-0.5">
+                                <div className="h-1 bg-zinc-200 rounded-full w-full" />
+                                <div className="h-1 bg-zinc-200 rounded-full w-11/12" />
+                                <div className="h-1 bg-zinc-200 rounded-full w-4/5" />
                               </div>
                             </div>
-                          ))}
 
+                            {/* Experience Snippet */}
+                            <div className="space-y-1 mb-1 flex-1">
+                              <div className="text-[7px] font-bold uppercase tracking-wider text-zinc-800 flex justify-between">
+                                <span>Experience</span>
+                                <span className="text-[6px] text-zinc-400">Recent</span>
+                              </div>
+                              <p className="text-[7.5px] font-semibold text-zinc-800 truncate">
+                                {slot.resume.rawResumeData?.experience?.[0]?.role || "Professional Experience"}
+                              </p>
+                              <div className="space-y-0.5">
+                                <div className="h-1 bg-zinc-200 rounded-full w-full" />
+                                <div className="h-1 bg-zinc-200 rounded-full w-5/6" />
+                                <div className="h-1 bg-zinc-200 rounded-full w-3/4" />
+                              </div>
+                            </div>
+
+                            {/* Paper Footer */}
+                            <div className="pt-1 border-t border-zinc-200 flex justify-between items-center text-[6.5px] text-zinc-500">
+                              <span>Slot {slot.slotNumber}</span>
+                              <span>Harvard FAS Format</span>
+                            </div>
+                          </div>
+
+                          {/* ATS-friendly Badge */}
+                          <div className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full border border-emerald-300/80 bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 shadow-xs dark:bg-zinc-900/95 dark:border-emerald-700/60 dark:text-emerald-400">
+                            <CheckCircle2 className="size-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>ATS-friendly</span>
+                          </div>
+
+                          {/* Overlay: Eye Quick Preview */}
                           <button
                             type="button"
-                            onClick={() =>
-                              setResume((prev) => ({
-                                ...prev,
-                                education: [
-                                  ...prev.education,
-                                  {
-                                    id: `edu-${Date.now()}`,
-                                    institution: "",
-                                    degree: "",
-                                    location: "",
-                                    graduationDate: "",
-                                    details: "",
-                                  },
-                                ],
-                              }))
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickPreviewSlot(slot);
+                            }}
+                            title="Quick Preview"
+                            className="absolute bottom-3 right-3 flex size-8 items-center justify-center rounded-xl bg-white/95 dark:bg-zinc-900/90 border border-border text-muted-foreground hover:text-foreground shadow-xs hover:border-violet-400 transition-all"
                           >
-                            <Plus className="size-3.5" />
-                            Add Education Entry
+                            <Eye className="size-4" />
                           </button>
                         </div>
-                      )}
 
-                      {/* SECTION 2: WORK EXPERIENCE */}
-                      {sectionKey === "experience" && (
-                        <div className="space-y-5">
-                          {resume.experience.map((exp, expIdx) => (
-                            <div
-                              key={exp.id}
-                              className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-3.5"
+                        {/* Card Footer */}
+                        <div className="pt-3.5 flex items-center justify-between">
+                          <div
+                            onClick={() => handleOpenEditorForSlot(slot.slotId)}
+                            className="cursor-pointer space-y-0.5 flex-1 min-w-0 pr-2"
+                          >
+                            <h3 className="text-sm font-bold text-foreground truncate group-hover:text-violet-600 transition-colors">
+                              {slot.title}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {slot.updatedLabel}
+                            </p>
+                          </div>
+
+                          {/* 3-Dots Menu */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setOpenMenuSlotId(openMenuSlotId === slot.slotId ? null : slot.slotId)}
+                              className="flex size-8 items-center justify-center rounded-lg border border-transparent hover:border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-muted-foreground">
-                                  Role #{expIdx + 1}
-                                </span>
+                              <MoreHorizontal className="size-4" />
+                            </button>
+
+                            {openMenuSlotId === slot.slotId && (
+                              <div
+                                onMouseLeave={() => setOpenMenuSlotId(null)}
+                                className="absolute right-0 bottom-full mb-1.5 z-40 w-48 rounded-xl border border-border bg-card p-1.5 shadow-xl text-xs space-y-0.5 animate-in fade-in zoom-in-95"
+                              >
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setResume((prev) => ({
-                                      ...prev,
-                                      experience: prev.experience.filter((_, i) => i !== expIdx),
-                                    }))
-                                  }
-                                  className="text-muted-foreground hover:text-rose-500"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    handleOpenEditorForSlot(slot.slotId);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-foreground hover:bg-muted"
+                                >
+                                  <PenLine className="size-3.5 text-violet-600" />
+                                  <span>Edit Resume</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    handleDownloadSlotPdf(slot.slotId);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-foreground hover:bg-muted"
+                                >
+                                  <Download className="size-3.5 text-violet-600" />
+                                  <span>Download PDF</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    handleDuplicateToAvailableSlot(slot.slotId);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-foreground hover:bg-muted"
+                                >
+                                  <Copy className="size-3.5 text-indigo-600" />
+                                  <span>Duplicate to Empty Slot</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    handleSetPrimary(slot.slotId);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-foreground hover:bg-muted"
+                                >
+                                  <Star className={`size-3.5 ${slot.isPrimary ? "text-amber-500 fill-amber-500" : "text-muted-foreground"}`} />
+                                  <span>{slot.isPrimary ? "Active Primary" : "Make Primary"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    setDeleteConfirmSlot(slot);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                                 >
                                   <Trash2 className="size-3.5" />
+                                  <span>Delete Resume</span>
                                 </button>
                               </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
 
-                              <div className="grid gap-2.5 sm:grid-cols-2">
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Job Title / Role
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={exp.role}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.experience];
-                                        updated[expIdx] = { ...updated[expIdx], role: val };
-                                        return { ...prev, experience: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. Software Engineer, Audit Associate, Operations Lead"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
+                  // EMPTY RESUME SLOT
+                  return (
+                    <div
+                      key={slot.slotId}
+                      onClick={() => handleCreateNewInSlot(slot.slotId)}
+                      className="group rounded-2xl border border-border/80 bg-card hover:bg-slate-50/50 dark:hover:bg-zinc-800/20 hover:border-violet-400 transition-all p-6 flex flex-col items-center justify-center text-center min-h-[420px] cursor-pointer"
+                    >
+                      <div className="flex size-14 items-center justify-center rounded-full border border-border bg-background text-muted-foreground group-hover:text-violet-600 group-hover:border-violet-500 shadow-xs mb-4 transition-all">
+                        <Plus className="size-6 stroke-[1.75]" />
+                      </div>
+
+                      <h3 className="text-base font-bold text-foreground mb-1">
+                        Create a Resume
+                      </h3>
+                      <p className="text-xs text-muted-foreground max-w-[210px] mb-4 leading-relaxed">
+                        A blank canvas for your next big opportunity.
+                      </p>
+
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 hover:text-violet-700 transition-colors">
+                        <span>Start from scratch</span>
+                        <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-muted-foreground">
+                        or{" "}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenImportModal(slot.slotId);
+                          }}
+                          className="underline font-semibold hover:text-foreground"
+                        >
+                          Import document
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* CATEGORY 2: MY COVER LETTERS (3 SLOTS STORAGE) */}
+          {/* =================================================================== */}
+          {overviewCategory === "cover-letters" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-bold text-foreground">My Cover Letters</h2>
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-extrabold text-muted-foreground">
+                    {filledCoverLettersCount}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleCreateNewCoverLetter()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold text-foreground hover:bg-muted hover:border-violet-400 shadow-xs transition-all"
+                >
+                  <Plus className="size-3.5 text-muted-foreground" />
+                  <span>Create Cover Letter</span>
+                </button>
+              </div>
+
+              {/* 3-Cover Letter Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
+                {clSlots.map((slot) => {
+                  // FILLED COVER LETTER SLOT
+                  if (slot.data !== null) {
+                    return (
+                      <div
+                        key={slot.slotId}
+                        className="group rounded-2xl border border-border bg-card p-4 flex flex-col justify-between hover:shadow-lg hover:border-violet-300/70 dark:hover:border-violet-700/70 transition-all relative"
+                      >
+                        {/* Visual Letter Sheet Preview */}
+                        <div
+                          onClick={() => handleOpenCoverLetterForSlot(slot.slotId)}
+                          className="bg-slate-100/80 dark:bg-zinc-800/40 rounded-xl p-4 flex items-center justify-center relative min-h-[350px] cursor-pointer overflow-hidden transition-all group-hover:bg-slate-100 dark:group-hover:bg-zinc-800/60"
+                        >
+                          <div className="bg-white text-zinc-900 rounded-md shadow-md border border-zinc-200/90 p-4 aspect-[1/1.3] w-full max-w-[230px] overflow-hidden flex flex-col justify-between select-none pointer-events-none transform group-hover:scale-[1.02] transition-transform">
+                            {/* Letter Header */}
+                            <div className="border-b border-zinc-300 pb-1.5 mb-1.5">
+                              <h4 className="text-[10px] font-extrabold uppercase text-zinc-950 truncate">
+                                {resume.contact.fullName || userName || "Candidate"}
+                              </h4>
+                              <p className="text-[7.5px] font-bold text-violet-700 truncate">
+                                {slot.data.companyName ? `Target: ${slot.data.companyName}` : slot.title}
+                              </p>
+                              <p className="text-[6.5px] text-zinc-500">
+                                {slot.data.date || "Recent Date"}
+                              </p>
+                            </div>
+
+                            {/* Salutation & Paragraph Snippet */}
+                            <div className="space-y-1.5 text-[7px] text-zinc-700 leading-relaxed flex-1">
+                              <p className="font-bold text-zinc-900">{slot.data.salutation}</p>
+                              <p className="line-clamp-4 text-justify">
+                                {slot.data.openingParagraph || slot.data.bodyParagraph1 || "Letter content tailored to company..."}
+                              </p>
+                            </div>
+
+                            {/* Signoff */}
+                            <div className="pt-2 border-t border-zinc-200 text-[6.5px] text-zinc-600">
+                              <p>{slot.data.signoff || "Sincerely,"}</p>
+                              <p className="font-bold text-zinc-900 truncate">
+                                {resume.contact.fullName || userName || "Candidate"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Quick Preview Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickPreviewClSlot(slot);
+                            }}
+                            title="Quick Preview"
+                            className="absolute bottom-3 right-3 flex size-8 items-center justify-center rounded-xl bg-white/95 dark:bg-zinc-900/90 border border-border text-muted-foreground hover:text-foreground shadow-xs hover:border-violet-400 transition-all"
+                          >
+                            <Eye className="size-4" />
+                          </button>
+                        </div>
+
+                        {/* Card Footer */}
+                        <div className="pt-3.5 flex items-center justify-between">
+                          <div
+                            onClick={() => handleOpenCoverLetterForSlot(slot.slotId)}
+                            className="cursor-pointer space-y-0.5 flex-1 min-w-0 pr-2"
+                          >
+                            <h3 className="text-sm font-bold text-foreground truncate group-hover:text-violet-600 transition-colors">
+                              {slot.title}
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              {slot.updatedLabel}
+                            </p>
+                          </div>
+
+                          {/* 3-Dots Menu */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setOpenMenuSlotId(openMenuSlotId === slot.slotId ? null : slot.slotId)}
+                              className="flex size-8 items-center justify-center rounded-lg border border-transparent hover:border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </button>
+
+                            {openMenuSlotId === slot.slotId && (
+                              <div
+                                onMouseLeave={() => setOpenMenuSlotId(null)}
+                                className="absolute right-0 bottom-full mb-1.5 z-40 w-48 rounded-xl border border-border bg-card p-1.5 shadow-xl text-xs space-y-0.5 animate-in fade-in zoom-in-95"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    handleOpenCoverLetterForSlot(slot.slotId);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-foreground hover:bg-muted"
+                                >
+                                  <PenLine className="size-3.5 text-violet-600" />
+                                  <span>Edit Cover Letter</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    handleDuplicateCoverLetter(slot.slotId);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-foreground hover:bg-muted"
+                                >
+                                  <Copy className="size-3.5 text-indigo-600" />
+                                  <span>Duplicate to Empty Slot</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenMenuSlotId(null);
+                                    setDeleteConfirmClSlot(slot);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                  <span>Delete Cover Letter</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // EMPTY COVER LETTER SLOT
+                  return (
+                    <div
+                      key={slot.slotId}
+                      onClick={() => handleCreateNewCoverLetter(slot.slotId)}
+                      className="group rounded-2xl border-2 border-dashed border-border bg-card/40 hover:bg-card/70 hover:border-violet-500/50 transition-all p-6 flex flex-col items-center justify-center text-center min-h-[420px] cursor-pointer"
+                    >
+                      <div className="flex size-12 items-center justify-center rounded-full border border-border bg-background text-muted-foreground group-hover:text-violet-600 group-hover:border-violet-500 shadow-xs mb-4 transition-all">
+                        <Mail className="size-5" />
+                      </div>
+
+                      <h3 className="text-base font-bold text-foreground mb-1">
+                        Create a Cover Letter
+                      </h3>
+                      <p className="text-xs text-muted-foreground max-w-[210px] mb-5 leading-relaxed">
+                        Slot {slot.slotNumber} is available. Write a tailored letter or use AI to generate from your resume.
+                      </p>
+
+                      <div className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors">
+                        <span>Start from scratch</span>
+                        <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-muted-foreground">
+                        or{" "}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsCoverLetterModalOpen(true);
+                          }}
+                          className="underline font-semibold hover:text-foreground"
+                        >
+                          AI Tailor with Resume
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </main>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. EDITOR VIEW: HARVARD FAS RESUME BUILDER & COVER LETTER BUILDER */}
+      {/* ========================================================================= */}
+      {activeTab !== "overview" && (
+        <>
+          {/* Top Action Bar in Editor */}
+          <section className="sticky top-0 z-30 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
+            <div className="mx-auto flex w-full max-w-[1520px] flex-wrap items-center justify-between gap-3">
+              {/* Left: Back to Overview & Title */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeTab === "resume") {
+                      handleSaveCurrentResume(false);
+                    } else {
+                      handleSaveCurrentCoverLetter(false);
+                    }
+                    setActiveTab("overview");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-all"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span>{activeTab === "resume" ? "My Resumes" : "My Cover Letters"}</span>
+                </button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-sm font-bold sm:text-base">
+                      {activeTab === "resume"
+                        ? resume.title || "Harvard FAS Resume"
+                        : coverLetter.companyName
+                        ? `${coverLetter.roleTarget || "Role"} at ${coverLetter.companyName}`
+                        : "Harvard Standard Cover Letter"}
+                    </h1>
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/80 dark:text-violet-300">
+                      {activeTab === "resume"
+                        ? `Slot ${activeSlotId.replace("slot-", "")}`
+                        : `Slot ${activeClSlotId.replace("cl-slot-", "")}`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground hidden sm:block">
+                    Standard single-column, professional format.
+                  </p>
+                </div>
+              </div>
+
+              {/* Center: Slot Switcher Pills + Tab Switcher */}
+              <div className="flex items-center gap-3">
+                {/* Slot Switcher */}
+                <div className="hidden sm:inline-flex rounded-xl border border-border bg-card p-1 shadow-xs text-xs">
+                  {activeTab === "resume" ? (
+                    slots.map((s) => (
+                      <button
+                        key={s.slotId}
+                        type="button"
+                        onClick={() => handleOpenEditorForSlot(s.slotId)}
+                        className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                          activeSlotId === s.slotId
+                            ? "bg-violet-600 text-white shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Slot {s.slotNumber}
+                      </button>
+                    ))
+                  ) : (
+                    clSlots.map((s) => (
+                      <button
+                        key={s.slotId}
+                        type="button"
+                        onClick={() => handleOpenCoverLetterForSlot(s.slotId)}
+                        className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                          activeClSlotId === s.slotId
+                            ? "bg-violet-600 text-white shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Slot {s.slotNumber}
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Tabs: Resume vs Cover Letter */}
+                <div className="inline-flex rounded-xl border border-border bg-card p-1 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("resume")}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                      activeTab === "resume"
+                        ? "bg-foreground text-background shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <FileText className="size-3.5" />
+                    Resume Builder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("cover-letter")}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                      activeTab === "cover-letter"
+                        ? "bg-foreground text-background shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Mail className="size-3.5" />
+                    Cover Letter
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeTab === "resume") {
+                      handleSaveCurrentResume(true);
+                    } else {
+                      handleSaveCurrentCoverLetter(true);
+                    }
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-violet-400/40 bg-violet-50 dark:bg-violet-950/40 px-3.5 text-xs font-bold text-violet-700 dark:text-violet-300 hover:bg-violet-100 shadow-xs"
+                >
+                  <Check className="size-3.5" />
+                  <span>
+                    Save to Slot{" "}
+                    {activeTab === "resume"
+                      ? activeSlotId.replace("slot-", "")
+                      : activeClSlotId.replace("cl-slot-", "")}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFontFamily(fontFamily === "serif" ? "sans" : "serif")}
+                  title="Toggle Harvard Serif vs Modern Sans"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hover:bg-muted/50"
+                >
+                  <PenLine className="size-3.5 text-muted-foreground" />
+                  <span className="hidden sm:inline">
+                    {fontFamily === "serif" ? "Harvard Serif" : "Modern Sans"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadCurrentPdf}
+                  disabled={isDownloadingPdf}
+                  title="Download clean Harvard resume PDF"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-violet-500/30 bg-background px-3 text-xs font-semibold hover:bg-violet-500/10 transition-all text-foreground"
+                >
+                  {isDownloadingPdf ? (
+                    <Loader2 className="size-3.5 text-violet-600 animate-spin" />
+                  ) : (
+                    <Download className="size-3.5 text-violet-600" />
+                  )}
+                  <span>{isDownloadingPdf ? "Downloading..." : "Download PDF"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAndUseInJobSearch}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 px-4 text-xs font-bold text-white shadow-xs hover:brightness-105 active:scale-[0.98]"
+                >
+                  <Zap className="size-3.5" />
+                  <span>Use in Job Search</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Main Workspace for Builder */}
+          <main className="mx-auto w-full max-w-[1520px] px-4 py-6 sm:px-6 lg:px-8">
+            {/* Helper Strip */}
+            <div className="mb-6 rounded-2xl border border-border bg-card p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-4 text-violet-600" />
+                <span className="text-xs text-muted-foreground">
+                  Harvard FAS standard: single-column layout, clear reverse-chronological order, and bullet points structured with action verbs.
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResume(createBlankResume(userName, userEmail));
+                    showToast("Cleared resume to a clean blank slate.");
+                  }}
+                  className="rounded-xl border border-border bg-background px-3 py-1.5 font-semibold text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/20"
+                >
+                  Clear to Blank
+                </button>
+              </div>
+            </div>
+
+            {/* Split Screen Grid: Form on Left, Live Document on Right */}
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(480px,1.05fr)] xl:grid-cols-[minmax(0,1fr)_minmax(540px,1.15fr)]">
+              {/* LEFT COLUMN: INTERACTIVE FORM EDITOR */}
+              <div className="space-y-6">
+                {activeTab === "resume" ? (
+                  <>
+                    {/* 1. Contact & Header Information */}
+                    <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-border/70 pb-3 mb-4">
+                        <div className="flex items-center gap-2">
+                          <User className="size-4 text-violet-600" />
+                          <h2 className="text-sm font-bold text-foreground">Header & Contact Info</h2>
+                        </div>
+                        <span className="text-xs text-muted-foreground">Standard top banner</span>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                            Full Name
+                          </label>
+                          <input
+                            type="text"
+                            value={resume.contact.fullName}
+                            onChange={(e) =>
+                              setResume((prev) => ({
+                                ...prev,
+                                contact: { ...prev.contact, fullName: e.target.value },
+                              }))
+                            }
+                            placeholder="e.g. Alex Morgan"
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                            Resume Title / Target Role
+                          </label>
+                          <input
+                            type="text"
+                            value={resume.title}
+                            onChange={(e) =>
+                              setResume((prev) => ({
+                                ...prev,
+                                title: e.target.value,
+                              }))
+                            }
+                            placeholder="e.g. Senior Software Engineer"
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                            Professional Email
+                          </label>
+                          <input
+                            type="email"
+                            value={resume.contact.email}
+                            onChange={(e) =>
+                              setResume((prev) => ({
+                                ...prev,
+                                contact: { ...prev.contact, email: e.target.value },
+                              }))
+                            }
+                            placeholder="e.g. alex@example.com"
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                            Phone Number
+                          </label>
+                          <input
+                            type="tel"
+                            value={resume.contact.phone}
+                            onChange={(e) =>
+                              setResume((prev) => ({
+                                ...prev,
+                                contact: { ...prev.contact, phone: e.target.value },
+                              }))
+                            }
+                            placeholder="e.g. (555) 019-2834"
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                            Location (City, State / Country)
+                          </label>
+                          <input
+                            type="text"
+                            value={resume.contact.location}
+                            onChange={(e) =>
+                              setResume((prev) => ({
+                                ...prev,
+                                contact: { ...prev.contact, location: e.target.value },
+                              }))
+                            }
+                            placeholder="e.g. San Francisco, CA"
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                            Portfolio / GitHub / Website
+                          </label>
+                          <input
+                            type="text"
+                            value={resume.contact.githubOrPortfolio}
+                            onChange={(e) =>
+                              setResume((prev) => ({
+                                ...prev,
+                                contact: { ...prev.contact, githubOrPortfolio: e.target.value },
+                              }))
+                            }
+                            placeholder="github.com/username or portfolio.dev"
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Reorderable Sections */}
+                    {resume.sectionOrder.map((sectionKey, sIdx) => (
+                      <div
+                        key={sectionKey}
+                        className="rounded-2xl border border-border bg-card p-5 shadow-xs transition-all"
+                      >
+                        <div className="flex items-center justify-between border-b border-border/70 pb-3 mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="flex size-6 items-center justify-center rounded-lg bg-violet-100 text-[11px] font-bold text-violet-700 dark:bg-violet-900/60 dark:text-violet-300">
+                              {sIdx + 1}
+                            </span>
+                            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+                              {sectionKey === "education" && "Education"}
+                              {sectionKey === "experience" && "Work Experience"}
+                              {sectionKey === "projects" && "Projects"}
+                              {sectionKey === "skills" && "Skills & Competencies"}
+                              {sectionKey === "leadership" && "Leadership & Activities"}
+                            </h2>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => moveSection(sIdx, "up")}
+                              disabled={sIdx === 0}
+                              title="Move section up"
+                              className="inline-flex size-7 items-center justify-center rounded-lg border border-border text-xs font-semibold text-muted-foreground transition-colors hover:border-violet-400 hover:text-foreground disabled:opacity-30 disabled:hover:border-border"
+                            >
+                              <ArrowUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveSection(sIdx, "down")}
+                              disabled={sIdx === resume.sectionOrder.length - 1}
+                              title="Move section down"
+                              className="inline-flex size-7 items-center justify-center rounded-lg border border-border text-xs font-semibold text-muted-foreground transition-colors hover:border-violet-400 hover:text-foreground disabled:opacity-30 disabled:hover:border-border"
+                            >
+                              <ArrowDown className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* SECTION 1: EDUCATION */}
+                        {sectionKey === "education" && (
+                          <div className="space-y-4">
+                            {resume.education.map((edu, eduIdx) => (
+                              <div
+                                key={edu.id}
+                                className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-3"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-muted-foreground">
+                                    Entry #{eduIdx + 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setResume((prev) => ({
+                                        ...prev,
+                                        education: prev.education.filter((_, i) => i !== eduIdx),
+                                      }))
+                                    }
+                                    className="text-muted-foreground hover:text-rose-500"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
                                 </div>
 
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Company / Organization
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={exp.company}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.experience];
-                                        updated[expIdx] = { ...updated[expIdx], company: val };
-                                        return { ...prev, experience: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. Stripe, Deloitte, Acme Corp"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
+                                <div className="grid gap-2.5 sm:grid-cols-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Institution / University
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={edu.institution}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.education];
+                                          updated[eduIdx] = { ...updated[eduIdx], institution: val };
+                                          return { ...prev, education: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. University"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Degree & Major
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={edu.degree}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.education];
+                                          updated[eduIdx] = { ...updated[eduIdx], degree: val };
+                                          return { ...prev, education: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. B.S. in Computer Science"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Graduation Date
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={edu.graduationDate}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.education];
+                                          updated[eduIdx] = { ...updated[eduIdx], graduationDate: val };
+                                          return { ...prev, education: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. May 2024"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Location
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={edu.location}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.education];
+                                          updated[eduIdx] = { ...updated[eduIdx], location: val };
+                                          return { ...prev, education: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. City, State"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setResume((prev) => ({
+                                  ...prev,
+                                  education: [
+                                    ...prev.education,
+                                    {
+                                      id: `edu-${Date.now()}`,
+                                      institution: "",
+                                      degree: "",
+                                      location: "",
+                                      graduationDate: "",
+                                    },
+                                  ],
+                                }))
+                              }
+                              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground transition-colors"
+                            >
+                              <Plus className="size-3.5" />
+                              <span>Add Education Entry</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* SECTION 2: WORK EXPERIENCE */}
+                        {sectionKey === "experience" && (
+                          <div className="space-y-4">
+                            {resume.experience.map((exp, expIdx) => (
+                              <div
+                                key={exp.id}
+                                className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-3"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-muted-foreground">
+                                    Role #{expIdx + 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setResume((prev) => ({
+                                        ...prev,
+                                        experience: prev.experience.filter((_, i) => i !== expIdx),
+                                      }))
+                                    }
+                                    className="text-muted-foreground hover:text-rose-500"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
                                 </div>
 
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Location (City, State / Remote)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={exp.location}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.experience];
-                                        updated[expIdx] = { ...updated[expIdx], location: val };
-                                        return { ...prev, experience: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. New York, NY or Remote"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
-                                </div>
+                                <div className="grid gap-2.5 sm:grid-cols-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Role Title
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={exp.role}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.experience];
+                                          updated[expIdx] = { ...updated[expIdx], role: val };
+                                          return { ...prev, experience: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. Software Engineer"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
 
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Date Range
-                                  </label>
-                                  <div className="flex gap-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Company / Organization
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={exp.company}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.experience];
+                                          updated[expIdx] = { ...updated[expIdx], company: val };
+                                          return { ...prev, experience: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. Acme Corp"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Start Date
+                                    </label>
                                     <input
                                       type="text"
                                       value={exp.startDate}
@@ -970,9 +2019,15 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                                           return { ...prev, experience: updated };
                                         });
                                       }}
-                                      placeholder="e.g. Jun 2023"
-                                      className="w-1/2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                      placeholder="e.g. Jan 2023"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
                                     />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      End Date
+                                    </label>
                                     <input
                                       type="text"
                                       value={exp.endDate}
@@ -984,28 +2039,19 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                                           return { ...prev, experience: updated };
                                         });
                                       }}
-                                      placeholder="Present or Aug 2024"
-                                      className="w-1/2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                      placeholder="e.g. Present"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
                                     />
                                   </div>
                                 </div>
-                              </div>
 
-                              {/* Bullets with AI Improvement */}
-                              <div className="space-y-2 pt-2 border-t border-border/60">
-                                <div className="flex items-center justify-between">
-                                  <label className="text-[10px] font-bold text-muted-foreground">
-                                    Accomplishments / Bullet Points (Harvard XYZ Standard)
+                                {/* Accomplishment Bullets */}
+                                <div className="space-y-2 pt-2">
+                                  <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    Accomplishment Bullets
                                   </label>
-                                  <span className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold">
-                                    Action Verb + Task + Quantifiable Result
-                                  </span>
-                                </div>
-
-                                {exp.bullets.map((bullet, bIdx) => (
-                                  <div key={bIdx} className="space-y-1.5">
-                                    <div className="flex items-start gap-2">
-                                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                                  {exp.bullets.map((bullet, bIdx) => (
+                                    <div key={bIdx} className="flex items-start gap-2">
                                       <textarea
                                         rows={2}
                                         value={bullet}
@@ -1020,195 +2066,172 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                                           });
                                         }}
                                         placeholder="Accomplished [X] as measured by [Y], by doing [Z]..."
-                                        className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
+                                        className="w-full rounded-xl border border-border bg-background p-2 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
                                       />
-                                      <div className="flex flex-col gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openAiBulletImprover(
-                                              "experience",
-                                              expIdx,
-                                              bIdx,
-                                              bullet,
-                                              exp.role
-                                            )
-                                          }
-                                          title="Improve line with AI (Harvard Action Verbs & Metrics)"
-                                          className="inline-flex size-7 items-center justify-center rounded-lg border border-violet-300 bg-violet-50 text-violet-700 transition-all hover:bg-violet-600 hover:text-white dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-300 dark:hover:bg-violet-600"
-                                        >
-                                          <Sparkles className="size-3.5" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setResume((prev) => {
-                                              const updated = [...prev.experience];
-                                              const bullets = updated[expIdx].bullets.filter((_, i) => i !== bIdx);
-                                              updated[expIdx] = { ...updated[expIdx], bullets };
-                                              return { ...prev, experience: updated };
-                                            });
-                                          }}
-                                          title="Delete bullet"
-                                          className="inline-flex size-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-all hover:border-rose-400 hover:text-rose-600"
-                                        >
-                                          <Trash2 className="size-3.5" />
-                                        </button>
-                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => openAiBulletImprover("experience", expIdx, bIdx, bullet, exp.role)}
+                                        title="Enhance line"
+                                        className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-400 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-950/60 dark:text-violet-300"
+                                      >
+                                        <Wand2 className="size-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setResume((prev) => {
+                                            const updated = [...prev.experience];
+                                            const bullets = updated[expIdx].bullets.filter((_, i) => i !== bIdx);
+                                            updated[expIdx] = { ...updated[expIdx], bullets };
+                                            return { ...prev, experience: updated };
+                                          });
+                                        }}
+                                        className="mt-1 text-muted-foreground hover:text-rose-500 p-1"
+                                      >
+                                        <Trash2 className="size-3.5" />
+                                      </button>
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setResume((prev) => {
-                                      const updated = [...prev.experience];
-                                      updated[expIdx].bullets.push("");
-                                      return { ...prev, experience: updated };
-                                    });
-                                  }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground"
-                                >
-                                  <Plus className="size-3" />
-                                  Add Bullet Point
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setResume((prev) => {
+                                        const updated = [...prev.experience];
+                                        updated[expIdx].bullets.push("");
+                                        return { ...prev, experience: updated };
+                                      });
+                                    }}
+                                    className="text-[11px] font-semibold text-violet-600 hover:underline inline-flex items-center gap-1"
+                                  >
+                                    <Plus className="size-3" /> Add bullet point
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setResume((prev) => ({
-                                ...prev,
-                                experience: [
-                                  ...prev.experience,
-                                  {
-                                    id: `exp-${Date.now()}`,
-                                    role: "",
-                                    company: "",
-                                    location: "",
-                                    startDate: "",
-                                    endDate: "Present",
-                                    bullets: [""],
-                                  },
-                                ],
-                              }))
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground"
-                          >
-                            <Plus className="size-3.5" />
-                            Add Work Experience Entry
-                          </button>
-                        </div>
-                      )}
-
-                      {/* SECTION 3: PROJECTS */}
-                      {sectionKey === "projects" && (
-                        <div className="space-y-4">
-                          {resume.projects.map((proj, projIdx) => (
-                            <div
-                              key={proj.id}
-                              className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-3"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setResume((prev) => ({
+                                  ...prev,
+                                  experience: [
+                                    ...prev.experience,
+                                    {
+                                      id: `exp-${Date.now()}`,
+                                      role: "",
+                                      company: "",
+                                      location: "",
+                                      startDate: "",
+                                      endDate: "Present",
+                                      bullets: [""],
+                                    },
+                                  ],
+                                }))
+                              }
+                              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground transition-colors"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-muted-foreground">
-                                  Project #{projIdx + 1}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setResume((prev) => ({
-                                      ...prev,
-                                      projects: prev.projects.filter((_, i) => i !== projIdx),
-                                    }))
-                                  }
-                                  className="text-muted-foreground hover:text-rose-500"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </button>
-                              </div>
+                              <Plus className="size-3.5" />
+                              <span>Add Experience Entry</span>
+                            </button>
+                          </div>
+                        )}
 
-                              <div className="grid gap-2.5 sm:grid-cols-2">
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Project Title
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={proj.title}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.projects];
-                                        updated[projIdx] = { ...updated[projIdx], title: val };
-                                        return { ...prev, projects: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. Distributed Key-Value Store or Tax Audit Model"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
+                        {/* SECTION 3: PROJECTS */}
+                        {sectionKey === "projects" && (
+                          <div className="space-y-4">
+                            {resume.projects.map((proj, projIdx) => (
+                              <div
+                                key={proj.id}
+                                className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-3"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-muted-foreground">
+                                    Project #{projIdx + 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setResume((prev) => ({
+                                        ...prev,
+                                        projects: prev.projects.filter((_, i) => i !== projIdx),
+                                      }))
+                                    }
+                                    className="text-muted-foreground hover:text-rose-500"
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
                                 </div>
 
-                                <div>
-                                  <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                                    Tools / Technologies / Methodologies
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={proj.techStack}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setResume((prev) => {
-                                        const updated = [...prev.projects];
-                                        updated[projIdx] = { ...updated[projIdx], techStack: val };
-                                        return { ...prev, projects: updated };
-                                      });
-                                    }}
-                                    placeholder="e.g. Python, SQL, Docker, or Ind AS, Excel VBA"
-                                    className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Bullets */}
-                              <div className="space-y-2 pt-2 border-t border-border/60">
-                                {proj.bullets.map((bullet, bIdx) => (
-                                  <div key={bIdx} className="flex items-start gap-2">
-                                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
-                                    <textarea
-                                      rows={2}
-                                      value={bullet}
+                                <div className="grid gap-2.5 sm:grid-cols-2">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Project Title
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={proj.title}
                                       onChange={(e) => {
                                         const val = e.target.value;
                                         setResume((prev) => {
                                           const updated = [...prev.projects];
-                                          const bullets = [...updated[projIdx].bullets];
-                                          bullets[bIdx] = val;
-                                          updated[projIdx] = { ...updated[projIdx], bullets };
+                                          updated[projIdx] = { ...updated[projIdx], title: val };
                                           return { ...prev, projects: updated };
                                         });
                                       }}
-                                      placeholder="Engineered [X] resulting in [Y]..."
-                                      className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                      placeholder="e.g. Distributed Database"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
                                     />
-                                    <div className="flex flex-col gap-1">
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-muted-foreground mb-1">
+                                      Tech Stack / Tools Used
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={proj.techStack}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setResume((prev) => {
+                                          const updated = [...prev.projects];
+                                          updated[projIdx] = { ...updated[projIdx], techStack: val };
+                                          return { ...prev, projects: updated };
+                                        });
+                                      }}
+                                      placeholder="e.g. Python, Docker, Next.js"
+                                      className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Project Bullets */}
+                                <div className="space-y-2">
+                                  {proj.bullets.map((bullet, bIdx) => (
+                                    <div key={bIdx} className="flex items-start gap-2">
+                                      <textarea
+                                        rows={2}
+                                        value={bullet}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setResume((prev) => {
+                                            const updated = [...prev.projects];
+                                            const bullets = [...updated[projIdx].bullets];
+                                            bullets[bIdx] = val;
+                                            updated[projIdx] = { ...updated[projIdx], bullets };
+                                            return { ...prev, projects: updated };
+                                          });
+                                        }}
+                                        placeholder="Action & outcome achieved..."
+                                        className="w-full rounded-xl border border-border bg-background p-2 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
+                                      />
                                       <button
                                         type="button"
-                                        onClick={() =>
-                                          openAiBulletImprover(
-                                            "projects",
-                                            projIdx,
-                                            bIdx,
-                                            bullet,
-                                            proj.title
-                                          )
-                                        }
-                                        title="Improve project bullet with AI"
-                                        className="inline-flex size-7 items-center justify-center rounded-lg border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-600 hover:text-white dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-300"
+                                        onClick={() => openAiBulletImprover("projects", projIdx, bIdx, bullet, proj.title)}
+                                        title="Enhance line"
+                                        className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-400 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-950/60 dark:text-violet-300"
                                       >
-                                        <Sparkles className="size-3.5" />
+                                        <Wand2 className="size-3.5" />
                                       </button>
                                       <button
                                         type="button"
@@ -1220,379 +2243,165 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                                             return { ...prev, projects: updated };
                                           });
                                         }}
-                                        className="inline-flex size-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-rose-400 hover:text-rose-600"
+                                        className="mt-1 text-muted-foreground hover:text-rose-500 p-1"
                                       >
                                         <Trash2 className="size-3.5" />
                                       </button>
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
 
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setResume((prev) => {
-                                      const updated = [...prev.projects];
-                                      updated[projIdx].bullets.push("");
-                                      return { ...prev, projects: updated };
-                                    });
-                                  }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground"
-                                >
-                                  <Plus className="size-3" />
-                                  Add Project Bullet
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setResume((prev) => {
+                                        const updated = [...prev.projects];
+                                        updated[projIdx].bullets.push("");
+                                        return { ...prev, projects: updated };
+                                      });
+                                    }}
+                                    className="text-[11px] font-semibold text-violet-600 hover:underline inline-flex items-center gap-1"
+                                  >
+                                    <Plus className="size-3" /> Add project bullet
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setResume((prev) => ({
-                                ...prev,
-                                projects: [
-                                  ...prev.projects,
-                                  {
-                                    id: `proj-${Date.now()}`,
-                                    title: "",
-                                    techStack: "",
-                                    bullets: [""],
-                                  },
-                                ],
-                              }))
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground"
-                          >
-                            <Plus className="size-3.5" />
-                            Add Project Entry
-                          </button>
-                        </div>
-                      )}
-
-                      {/* SECTION 4: SKILLS */}
-                      {sectionKey === "skills" && (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                              Technical & Domain Competencies (comma separated)
-                            </label>
-                            <input
-                              type="text"
-                              value={resume.skills.technicalLanguages}
-                              onChange={(e) =>
+                            <button
+                              type="button"
+                              onClick={() =>
                                 setResume((prev) => ({
                                   ...prev,
-                                  skills: { ...prev.skills, technicalLanguages: e.target.value },
+                                  projects: [
+                                    ...prev.projects,
+                                    {
+                                      id: `proj-${Date.now()}`,
+                                      title: "",
+                                      techStack: "",
+                                      bullets: [""],
+                                    },
+                                  ],
                                 }))
                               }
-                              placeholder="e.g. Python, SQL, Financial Analysis, Audit Compliance, Figma"
-                              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                              Tools, Frameworks & Software
-                            </label>
-                            <input
-                              type="text"
-                              value={resume.skills.frameworksAndTools}
-                              onChange={(e) =>
-                                setResume((prev) => ({
-                                  ...prev,
-                                  skills: { ...prev.skills, frameworksAndTools: e.target.value },
-                                }))
-                              }
-                              placeholder="e.g. Git, Docker, Excel (VBA/Modeling), SAP FICO, Tableau"
-                              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-bold text-muted-foreground mb-1">
-                              Leadership & Professional Skills
-                            </label>
-                            <input
-                              type="text"
-                              value={resume.skills.softSkills}
-                              onChange={(e) =>
-                                setResume((prev) => ({
-                                  ...prev,
-                                  skills: { ...prev.skills, softSkills: e.target.value },
-                                }))
-                              }
-                              placeholder="e.g. Stakeholder Management, Agile Project Delivery, Team Mentorship"
-                              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* SECTION 5: LEADERSHIP & ACTIVITIES */}
-                      {sectionKey === "leadership" && (
-                        <div className="space-y-3">
-                          {resume.leadership.map((lead, leadIdx) => (
-                            <div
-                              key={lead.id}
-                              className="rounded-xl border border-border/80 bg-background/50 p-3.5 space-y-2.5"
+                              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground transition-colors"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-muted-foreground">
-                                  Leadership #{leadIdx + 1}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setResume((prev) => ({
-                                      ...prev,
-                                      leadership: prev.leadership.filter((_, i) => i !== leadIdx),
-                                    }))
-                                  }
-                                  className="text-muted-foreground hover:text-rose-500"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </button>
-                              </div>
+                              <Plus className="size-3.5" />
+                              <span>Add Project Entry</span>
+                            </button>
+                          </div>
+                        )}
 
-                              <div className="grid gap-2 sm:grid-cols-3">
-                                <input
-                                  type="text"
-                                  value={lead.role}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setResume((prev) => {
-                                      const updated = [...prev.leadership];
-                                      updated[leadIdx] = { ...updated[leadIdx], role: val };
-                                      return { ...prev, leadership: updated };
-                                    });
-                                  }}
-                                  placeholder="Role (e.g. President, Lead)"
-                                  className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                />
-                                <input
-                                  type="text"
-                                  value={lead.organization}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setResume((prev) => {
-                                      const updated = [...prev.leadership];
-                                      updated[leadIdx] = { ...updated[leadIdx], organization: val };
-                                      return { ...prev, leadership: updated };
-                                    });
-                                  }}
-                                  placeholder="Organization / Society"
-                                  className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                />
-                                <input
-                                  type="text"
-                                  value={lead.date}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setResume((prev) => {
-                                      const updated = [...prev.leadership];
-                                      updated[leadIdx] = { ...updated[leadIdx], date: val };
-                                      return { ...prev, leadership: updated };
-                                    });
-                                  }}
-                                  placeholder="Date Range"
-                                  className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-violet-500"
-                                />
-                              </div>
-
-                              <textarea
-                                rows={2}
-                                value={lead.description}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setResume((prev) => {
-                                    const updated = [...prev.leadership];
-                                    updated[leadIdx] = { ...updated[leadIdx], description: val };
-                                    return { ...prev, leadership: updated };
-                                  });
-                                }}
-                                placeholder="Summary of initiative or accomplishments..."
-                                className="w-full rounded-xl border border-border bg-background p-2 text-xs text-foreground outline-none focus:border-violet-500"
+                        {/* SECTION 4: SKILLS */}
+                        {sectionKey === "skills" && (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                                Technical Skills (Languages & Tools)
+                              </label>
+                              <input
+                                type="text"
+                                value={resume.skills.technicalLanguages}
+                                onChange={(e) =>
+                                  setResume((prev) => ({
+                                    ...prev,
+                                    skills: { ...prev.skills, technicalLanguages: e.target.value },
+                                  }))
+                                }
+                                placeholder="Python, SQL, React, TypeScript, Git..."
+                                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
                               />
                             </div>
-                          ))}
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setResume((prev) => ({
-                                ...prev,
-                                leadership: [
-                                  ...prev.leadership,
-                                  {
-                                    id: `lead-${Date.now()}`,
-                                    role: "",
-                                    organization: "",
-                                    date: "",
-                                    description: "",
-                                  },
-                                ],
-                              }))
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-violet-400 hover:text-foreground"
-                          >
-                            <Plus className="size-3.5" />
-                            Add Leadership Entry
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
-              /* COVER LETTER FORM EDITOR */
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
-                  <div className="flex items-center justify-between border-b border-border/70 pb-3 mb-4">
-                    <div>
-                      <h2 className="text-sm font-bold text-foreground">
-                        Harvard FAS Cover Letter Details
-                      </h2>
-                      <p className="text-xs text-muted-foreground">
-                        Shares the identical header typography and layout as your resume.
-                      </p>
-                    </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                                Frameworks & Platforms
+                              </label>
+                              <input
+                                type="text"
+                                value={resume.skills.frameworksAndTools}
+                                onChange={(e) =>
+                                  setResume((prev) => ({
+                                    ...prev,
+                                    skills: { ...prev.skills, frameworksAndTools: e.target.value },
+                                  }))
+                                }
+                                placeholder="Docker, AWS, PostgreSQL, Tailwind..."
+                                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                              />
+                            </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          const candidateName = resume.contact.fullName || userName || "Candidate";
-                          setCoverLetter(
-                            createSampleCoverLetter(
-                              candidateName,
-                              coverLetter.roleTarget || "Software Engineer",
-                              coverLetter.companyName || "Target Company"
-                            )
-                          );
-                          showToast("Loaded Harvard standard template into editor!");
-                        }}
-                        className="rounded-xl border border-border text-xs font-semibold h-8"
-                      >
-                        Load Template
-                      </Button>
+                            <div>
+                              <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                                Core Competencies
+                              </label>
+                              <input
+                                type="text"
+                                value={resume.skills.softSkills}
+                                onChange={(e) =>
+                                  setResume((prev) => ({
+                                    ...prev,
+                                    skills: { ...prev.skills, softSkills: e.target.value },
+                                  }))
+                                }
+                                placeholder="Problem Solving, Cross-functional Leadership, Analytical Thinking..."
+                                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* SECTION 5: LEADERSHIP */}
+                        {sectionKey === "leadership" && (
+                          <div className="space-y-3">
+                            <p className="text-xs text-muted-foreground">
+                              Extracurricular initiatives, community leadership, and certifications.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  /* COVER LETTER FORM */
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between border-b border-border pb-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="size-4 text-violet-600" />
+                        <h2 className="text-sm font-bold text-foreground">Cover Letter Content</h2>
+                      </div>
                       <Button
                         type="button"
                         onClick={() => setIsCoverLetterModalOpen(true)}
-                        className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5 h-8"
+                        className="h-8 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5"
                       >
                         <Sparkles className="size-3.5" />
-                        AI Generate Letter
+                        <span>AI Tailor</span>
                       </Button>
                     </div>
-                  </div>
 
-                  {!coverLetter.openingParagraph && !coverLetter.bodyParagraph1 && !coverLetter.companyName && (
-                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4 mb-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                            <Sparkles className="size-4 text-violet-600" />
-                            Cover Letter Editor is currently empty
-                          </h4>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            You can type your own, populate a Harvard template into these fields to edit, or generate one tailored to a job with AI.
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const candidateName = resume.contact.fullName || userName || "Candidate";
-                              setCoverLetter(
-                                createSampleCoverLetter(
-                                  candidateName,
-                                  coverLetter.roleTarget || "Software Engineer",
-                                  coverLetter.companyName || "Target Company"
-                                )
-                              );
-                              showToast("Loaded template into your cover letter fields!");
-                            }}
-                            className="h-8 text-xs font-semibold"
-                          >
-                            Load Template
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => setIsCoverLetterModalOpen(true)}
-                            className="h-8 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold gap-1.5"
-                          >
-                            <Sparkles className="size-3.5" />
-                            AI Generate
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
                         <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                          Target Company Name
+                          Company Name
                         </label>
                         <input
                           type="text"
                           value={coverLetter.companyName}
-                          onChange={(e) =>
-                            setCoverLetter((prev) => ({ ...prev, companyName: e.target.value }))
-                          }
-                          placeholder="e.g. Google, McKinsey, Stripe"
+                          onChange={(e) => setCoverLetter({ ...coverLetter, companyName: e.target.value })}
+                          placeholder="e.g. Stripe, Apple, Acme Corp"
                           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
                         />
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                          Target Role Target Title
+                          Target Role
                         </label>
                         <input
                           type="text"
                           value={coverLetter.roleTarget}
-                          onChange={(e) =>
-                            setCoverLetter((prev) => ({ ...prev, roleTarget: e.target.value }))
-                          }
-                          placeholder="e.g. Financial Analyst, Software Engineer"
-                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                          Recipient Name / Title
-                        </label>
-                        <input
-                          type="text"
-                          value={coverLetter.recipientName}
-                          onChange={(e) =>
-                            setCoverLetter((prev) => ({ ...prev, recipientName: e.target.value }))
-                          }
-                          placeholder="e.g. Hiring Manager"
-                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                          Company Location
-                        </label>
-                        <input
-                          type="text"
-                          value={coverLetter.companyLocation}
-                          onChange={(e) =>
-                            setCoverLetter((prev) => ({ ...prev, companyLocation: e.target.value }))
-                          }
-                          placeholder="e.g. San Francisco, CA or London, UK"
+                          onChange={(e) => setCoverLetter({ ...coverLetter, roleTarget: e.target.value })}
+                          placeholder="e.g. Senior Software Engineer"
                           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
                         />
                       </div>
@@ -1600,442 +2409,719 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
 
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Opening Paragraph (Thesis Statement & Hook)
+                        Opening Paragraph
                       </label>
                       <textarea
                         rows={3}
                         value={coverLetter.openingParagraph}
-                        onChange={(e) =>
-                          setCoverLetter((prev) => ({ ...prev, openingParagraph: e.target.value }))
-                        }
-                        placeholder="State specific role applied for, how you discovered it, and a core thesis statement summarizing your background..."
-                        className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
+                        onChange={(e) => setCoverLetter({ ...coverLetter, openingParagraph: e.target.value })}
+                        className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
                       />
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Body Paragraph 1 (Relevant Experience from your Resume)
+                        Body Paragraph 1 (Key Accomplishments)
                       </label>
                       <textarea
                         rows={4}
                         value={coverLetter.bodyParagraph1}
-                        onChange={(e) =>
-                          setCoverLetter((prev) => ({ ...prev, bodyParagraph1: e.target.value }))
-                        }
-                        placeholder="Highlight 1-2 major accomplishments from your actual experience that directly connect to the employer's needs..."
-                        className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
+                        onChange={(e) => setCoverLetter({ ...coverLetter, bodyParagraph1: e.target.value })}
+                        className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
                       />
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Body Paragraph 2 (Skills Alignment & Mission Fit)
+                        Body Paragraph 2 (Why This Company)
                       </label>
                       <textarea
                         rows={3}
                         value={coverLetter.bodyParagraph2}
-                        onChange={(e) =>
-                          setCoverLetter((prev) => ({ ...prev, bodyParagraph2: e.target.value }))
-                        }
-                        placeholder="Connect your core skills to the organization's current priorities or culture..."
-                        className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                        Closing Paragraph (Next Steps & Appreciation)
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={coverLetter.closingParagraph}
-                        onChange={(e) =>
-                          setCoverLetter((prev) => ({ ...prev, closingParagraph: e.target.value }))
-                        }
-                        placeholder="Express interview availability, mention attachments, and thank the reader..."
-                        className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
+                        onChange={(e) => setCoverLetter({ ...coverLetter, bodyParagraph2: e.target.value })}
+                        className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
                       />
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ========================================================================= */}
-          {/* RIGHT COLUMN: LIVE 8.5" x 11" HARVARD DOCUMENT PREVIEW */}
-          {/* ========================================================================= */}
-          <div className="relative">
-            {/* Document Controls floating bar */}
-            <div className="mb-3 flex items-center justify-between rounded-xl border border-border bg-card px-4 py-2 text-xs">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Eye className="size-3.5 text-violet-600" />
-                <span className="font-semibold text-foreground">
-                  Harvard FAS 8.5&quot; &times; 11&quot; Live Preview
-                </span>
-                <span className="text-[11px]">({fontFamily === "serif" ? "Georgia" : "Sans"})</span>
+                )}
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">Zoom:</span>
-                <button
-                  type="button"
-                  onClick={() => setZoomLevel((z) => Math.max(70, z - 10))}
-                  className="rounded-md border border-border px-2 py-0.5 hover:bg-muted font-bold"
-                >
-                  -
-                </button>
-                <span className="w-8 text-center font-mono text-[11px] font-bold">
-                  {zoomLevel}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoomLevel((z) => Math.min(130, z + 10))}
-                  className="rounded-md border border-border px-2 py-0.5 hover:bg-muted font-bold"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Document Paper Container */}
-            <div className="overflow-x-auto rounded-2xl border border-border/80 bg-zinc-200/60 p-4 shadow-inner dark:bg-zinc-950/70 sm:p-6 flex justify-center">
-              <div
-                style={{
-                  transform: `scale(${zoomLevel / 100})`,
-                  transformOrigin: "top center",
-                  width: "8.5in",
-                  minHeight: "11in",
-                }}
-                className={`transition-transform duration-150 bg-white text-zinc-900 p-10 sm:p-12 shadow-2xl rounded-sm ${
-                  fontFamily === "serif" ? "font-serif" : "font-sans"
-                }`}
-              >
-                {activeTab === "resume" ? (
-                  /* ================= HARVARD RESUME DOCUMENT ================= */
-                  <div className="space-y-4 text-[11pt] leading-normal">
-                    {/* Header: Name Centered, Bold */}
-                    <div className="text-center pb-2 border-b border-zinc-900">
-                      <h1 className="text-2xl font-bold tracking-tight text-zinc-900 uppercase">
-                        {resume.contact.fullName || "Your Full Name"}
-                      </h1>
-                      <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 text-[10pt] text-zinc-700">
-                        {resume.contact.location && <span>{resume.contact.location}</span>}
-                        {resume.contact.phone && (
-                          <>
-                            <span>&bull;</span>
-                            <span>{resume.contact.phone}</span>
-                          </>
-                        )}
-                        {resume.contact.email && (
-                          <>
-                            <span>&bull;</span>
-                            <span className="underline">{resume.contact.email}</span>
-                          </>
-                        )}
-                        {resume.contact.linkedin && (
-                          <>
-                            <span>&bull;</span>
-                            <span className="underline">{resume.contact.linkedin}</span>
-                          </>
-                        )}
-                        {resume.contact.githubOrPortfolio && (
-                          <>
-                            <span>&bull;</span>
-                            <span className="underline">{resume.contact.githubOrPortfolio}</span>
-                          </>
-                        )}
+              {/* RIGHT COLUMN: LIVE 8.5" x 11" DOCUMENT PREVIEW */}
+              <div className="sticky top-20 self-start space-y-4">
+                {/* Document Top Bar */}
+                <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-3 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/80 dark:text-violet-300">
+                      {activeTab === "resume" ? <FileText className="size-4" /> : <Mail className="size-4" />}
+                    </span>
+                    <div>
+                      <div className="text-xs font-bold text-foreground">
+                        {activeTab === "resume" ? "Harvard FAS Resume Preview" : "Cover Letter Preview"}
                       </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {activeTab === "resume" ? "Standard single-column" : "Professional business letter"}
+                      </span>
                     </div>
+                  </div>
 
-                    {/* DYNAMIC REORDERED SECTIONS */}
-                    {(() => {
-                      const hasAnyEdu = resume.education.some((e) => e.institution.trim() || e.degree.trim());
-                      const hasAnyExp = resume.experience.some((e) => e.role.trim() || e.company.trim() || e.bullets.some((b) => b.trim()));
-                      const hasAnyProj = resume.projects.some((p) => p.title.trim() || p.bullets.some((b) => b.trim()));
-                      const hasAnySkills = Boolean(
-                        resume.skills.technicalLanguages.trim() ||
-                        resume.skills.frameworksAndTools.trim() ||
-                        resume.skills.softSkills.trim()
-                      );
-                      const hasAnyLead = resume.leadership.some((l) => l.role.trim() || l.organization.trim());
-                      const isEntirelyEmpty = !hasAnyEdu && !hasAnyExp && !hasAnyProj && !hasAnySkills && !hasAnyLead;
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeTab === "resume") {
+                          handleSaveCurrentResume(true);
+                        } else {
+                          handleSaveCurrentCoverLetter(true);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-violet-700 transition-all"
+                    >
+                      <Check className="size-3.5" />
+                      <span>
+                        Save to Slot{" "}
+                        {activeTab === "resume"
+                          ? activeSlotId.replace("slot-", "")
+                          : activeClSlotId.replace("cl-slot-", "")}
+                      </span>
+                    </button>
+                  </div>
+                </div>
 
-                      if (isEntirelyEmpty) {
-                        return (
-                          <div className="py-16 text-center text-zinc-400 border border-dashed border-zinc-200 rounded-lg my-6">
-                            <p className="text-sm font-semibold text-zinc-600">Your live document is ready for your input.</p>
-                            <p className="mt-1 text-xs text-zinc-500 max-w-md mx-auto">
-                              Fill in your real education, work experience, and accomplishments on the left.
-                              Use the <span className="font-bold text-violet-600">✨ AI</span> button on any line to polish your writing into Harvard XYZ standard.
-                            </p>
-                          </div>
-                        );
-                      }
+                {/* Printable Document Sheet */}
+                <div
+                  id="harvard-printable-area"
+                  className={`relative w-full rounded-xl border border-zinc-200 bg-white p-8 text-zinc-900 shadow-2xl transition-all dark:border-zinc-800 ${
+                    fontFamily === "serif" ? "font-serif" : "font-sans"
+                  }`}
+                  style={{ minHeight: "840px" }}
+                >
+                  {activeTab === "resume" ? (
+                    /* HARVARD FAS RESUME PRINTABLE SHEET */
+                    <div className="space-y-4 text-[9.5pt] leading-tight text-zinc-900">
+                      {/* Contact Banner */}
+                      <div className="border-b border-zinc-400 pb-2 text-center space-y-1">
+                        <h1 className="text-[17pt] font-extrabold uppercase tracking-wide text-zinc-950">
+                          {resume.contact.fullName || userName || "Candidate"}
+                        </h1>
+                        <div className="flex flex-wrap items-center justify-center gap-2 text-[9pt] text-zinc-700">
+                          {resume.contact.location && <span>{resume.contact.location}</span>}
+                          {resume.contact.phone && <span>• {resume.contact.phone}</span>}
+                          {resume.contact.email && <span>• {resume.contact.email}</span>}
+                          {resume.contact.githubOrPortfolio && <span>• {resume.contact.githubOrPortfolio}</span>}
+                        </div>
+                      </div>
 
-                      return resume.sectionOrder.map((sectionKey) => {
-                        if (sectionKey === "education" && hasAnyEdu) {
-                          const validEdus = resume.education.filter((e) => e.institution.trim() || e.degree.trim());
+                      {/* Sections in dynamic order */}
+                      {resume.sectionOrder.map((sec) => {
+                        if (sec === "education" && resume.education.length > 0 && resume.education.some((e) => e.institution)) {
                           return (
-                            <div key="edu" className="pt-1">
-                              <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b border-zinc-900 pb-0.5 mb-2">
+                            <div key="edu" className="space-y-1.5">
+                              <h3 className="border-b border-zinc-400 text-[10pt] font-bold uppercase tracking-wider text-zinc-900">
                                 Education
-                              </h2>
-                              <div className="space-y-2.5">
-                                {validEdus.map((edu) => (
-                                  <div key={edu.id}>
-                                    <div className="flex justify-between font-bold text-zinc-900 text-[10.5pt]">
-                                      <span>{edu.institution}</span>
-                                      <span>{edu.location}</span>
-                                    </div>
-                                    <div className="flex justify-between italic text-zinc-800 text-[10pt]">
-                                      <span>{edu.degree}</span>
-                                      <span className="not-italic">{edu.graduationDate}</span>
-                                    </div>
-                                    {edu.details && (
-                                      <p className="text-[9.5pt] text-zinc-700 mt-0.5 leading-snug">
-                                        {edu.details}
-                                      </p>
-                                    )}
+                              </h3>
+                              {resume.education.map((edu) => (
+                                <div key={edu.id} className="text-[9.5pt]">
+                                  <div className="flex justify-between font-bold">
+                                    <span>{edu.institution}</span>
+                                    <span>{edu.location}</span>
                                   </div>
-                                ))}
-                              </div>
+                                  <div className="flex justify-between italic text-zinc-700">
+                                    <span>{edu.degree}</span>
+                                    <span>{edu.graduationDate}</span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           );
                         }
 
-                        if (sectionKey === "experience" && hasAnyExp) {
-                          const validExps = resume.experience.filter((e) => e.role.trim() || e.company.trim() || e.bullets.some((b) => b.trim()));
+                        if (sec === "experience" && resume.experience.length > 0 && resume.experience.some((e) => e.role || e.company)) {
                           return (
-                            <div key="exp" className="pt-1">
-                              <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b border-zinc-900 pb-0.5 mb-2">
+                            <div key="exp" className="space-y-2">
+                              <h3 className="border-b border-zinc-400 text-[10pt] font-bold uppercase tracking-wider text-zinc-900">
                                 Experience
-                              </h2>
-                              <div className="space-y-3">
-                                {validExps.map((exp) => (
-                                  <div key={exp.id}>
-                                    <div className="flex justify-between font-bold text-zinc-900 text-[10.5pt]">
-                                      <span>{exp.company}</span>
-                                      <span>{exp.location}</span>
-                                    </div>
-                                    <div className="flex justify-between italic text-zinc-800 text-[10pt] mb-1">
-                                      <span>{exp.role}</span>
-                                      <span className="not-italic font-medium">
-                                        {exp.startDate} {exp.startDate && exp.endDate ? "–" : ""}{" "}
-                                        {exp.endDate}
-                                      </span>
-                                    </div>
-
-                                    <ul className="list-disc pl-5 space-y-1 text-[9.5pt] text-zinc-800 leading-snug">
-                                      {exp.bullets.filter((b) => b.trim()).map((bullet, bIdx) => (
-                                        <li key={bIdx}>{bullet}</li>
-                                      ))}
-                                    </ul>
+                              </h3>
+                              {resume.experience.map((exp) => (
+                                <div key={exp.id} className="text-[9.5pt] space-y-1">
+                                  <div className="flex justify-between font-bold">
+                                    <span>{exp.company}</span>
+                                    <span>{exp.location}</span>
                                   </div>
-                                ))}
-                              </div>
+                                  <div className="flex justify-between italic text-zinc-700">
+                                    <span>{exp.role}</span>
+                                    <span>
+                                      {exp.startDate} – {exp.endDate}
+                                    </span>
+                                  </div>
+                                  <ul className="ml-4 list-disc space-y-0.5 text-[9pt] leading-normal text-zinc-800">
+                                    {exp.bullets.filter(Boolean).map((bullet, bIdx) => (
+                                      <li key={bIdx}>{bullet}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
                             </div>
                           );
                         }
 
-                        if (sectionKey === "projects" && hasAnyProj) {
-                          const validProjs = resume.projects.filter((p) => p.title.trim() || p.bullets.some((b) => b.trim()));
+                        if (sec === "projects" && resume.projects.length > 0 && resume.projects.some((p) => p.title)) {
                           return (
-                            <div key="proj" className="pt-1">
-                              <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b border-zinc-900 pb-0.5 mb-2">
+                            <div key="proj" className="space-y-1.5">
+                              <h3 className="border-b border-zinc-400 text-[10pt] font-bold uppercase tracking-wider text-zinc-900">
                                 Projects
-                              </h2>
-                              <div className="space-y-2.5">
-                                {validProjs.map((proj) => (
-                                  <div key={proj.id}>
-                                    <div className="flex justify-between font-bold text-zinc-900 text-[10.5pt]">
-                                      <span>{proj.title}</span>
-                                      {proj.techStack && (
-                                        <span className="font-normal italic text-[9.5pt] text-zinc-700">
-                                          ({proj.techStack})
-                                        </span>
-                                      )}
-                                    </div>
-                                    <ul className="list-disc pl-5 space-y-1 text-[9.5pt] text-zinc-800 leading-snug mt-1">
-                                      {proj.bullets.filter((b) => b.trim()).map((bullet, bIdx) => (
-                                        <li key={bIdx}>{bullet}</li>
-                                      ))}
-                                    </ul>
+                              </h3>
+                              {resume.projects.map((proj) => (
+                                <div key={proj.id} className="text-[9.5pt] space-y-0.5">
+                                  <div className="flex justify-between font-bold">
+                                    <span>{proj.title}</span>
+                                    <span className="font-normal italic text-zinc-600 text-[8.5pt]">
+                                      {proj.techStack}
+                                    </span>
                                   </div>
-                                ))}
-                              </div>
+                                  <ul className="ml-4 list-disc space-y-0.5 text-[9pt] leading-normal text-zinc-800">
+                                    {proj.bullets.filter(Boolean).map((bullet, bIdx) => (
+                                      <li key={bIdx}>{bullet}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
                             </div>
                           );
                         }
 
-                        if (sectionKey === "skills" && hasAnySkills) {
+                        if (sec === "skills" && (resume.skills.technicalLanguages || resume.skills.frameworksAndTools || resume.skills.softSkills)) {
                           return (
-                            <div key="skills" className="pt-1">
-                              <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b border-zinc-900 pb-0.5 mb-2">
+                            <div key="skills" className="space-y-1 text-[9pt]">
+                              <h3 className="border-b border-zinc-400 text-[10pt] font-bold uppercase tracking-wider text-zinc-900">
                                 Skills & Competencies
-                              </h2>
-                              <div className="space-y-1 text-[9.5pt] text-zinc-800 leading-snug">
-                                {resume.skills.technicalLanguages && (
-                                  <p>
-                                    <strong className="font-bold text-zinc-900">Technical: </strong>
-                                    {resume.skills.technicalLanguages}
-                                  </p>
-                                )}
-                                {resume.skills.frameworksAndTools && (
-                                  <p>
-                                    <strong className="font-bold text-zinc-900">Tools & Frameworks: </strong>
-                                    {resume.skills.frameworksAndTools}
-                                  </p>
-                                )}
-                                {resume.skills.softSkills && (
-                                  <p>
-                                    <strong className="font-bold text-zinc-900">Professional & Leadership: </strong>
-                                    {resume.skills.softSkills}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        if (sectionKey === "leadership" && hasAnyLead) {
-                          const validLeads = resume.leadership.filter((l) => l.role.trim() || l.organization.trim());
-                          return (
-                            <div key="lead" className="pt-1">
-                              <h2 className="text-[11pt] font-bold uppercase tracking-wider text-zinc-900 border-b border-zinc-900 pb-0.5 mb-2">
-                                Leadership & Activities
-                              </h2>
-                              <div className="space-y-2">
-                                {validLeads.map((lead) => (
-                                  <div key={lead.id} className="text-[9.5pt] text-zinc-800 leading-snug">
-                                    <div className="flex justify-between font-bold text-zinc-900">
-                                      <span>
-                                        {lead.organization} — {lead.role}
-                                      </span>
-                                      <span>{lead.date}</span>
-                                    </div>
-                                    {lead.description && <p className="mt-0.5">{lead.description}</p>}
-                                  </div>
-                                ))}
-                              </div>
+                              </h3>
+                              {resume.skills.technicalLanguages && (
+                                <p>
+                                  <strong className="font-bold">Technical: </strong>
+                                  {resume.skills.technicalLanguages}
+                                </p>
+                              )}
+                              {resume.skills.frameworksAndTools && (
+                                <p>
+                                  <strong className="font-bold">Tools & Frameworks: </strong>
+                                  {resume.skills.frameworksAndTools}
+                                </p>
+                              )}
+                              {resume.skills.softSkills && (
+                                <p>
+                                  <strong className="font-bold">Competencies: </strong>
+                                  {resume.skills.softSkills}
+                                </p>
+                              )}
                             </div>
                           );
                         }
 
                         return null;
-                      });
-                    })()}
-                  </div>
-                ) : (
-                  /* ================= HARVARD COVER LETTER DOCUMENT ================= */
-                  <div className="space-y-5 text-[11pt] leading-relaxed text-zinc-900">
-                    {/* Mirrored Header */}
-                    <div className="text-center pb-2 border-b border-zinc-900">
-                      <h1 className="text-2xl font-bold tracking-tight text-zinc-900 uppercase">
-                        {resume.contact.fullName || "Your Full Name"}
-                      </h1>
-                      <div className="mt-1 flex flex-wrap items-center justify-center gap-x-2 text-[10pt] text-zinc-700">
-                        {resume.contact.location && <span>{resume.contact.location}</span>}
-                        {resume.contact.phone && (
-                          <>
-                            <span>&bull;</span>
-                            <span>{resume.contact.phone}</span>
-                          </>
-                        )}
-                        {resume.contact.email && (
-                          <>
-                            <span>&bull;</span>
-                            <span className="underline">{resume.contact.email}</span>
-                          </>
-                        )}
+                      })}
+                    </div>
+                  ) : (
+                    /* HARVARD COVER LETTER PRINTABLE SHEET */
+                    <div className="space-y-4 text-[10pt] leading-relaxed text-zinc-900">
+                      <div className="border-b border-zinc-300 pb-2">
+                        <h2 className="text-xl font-bold uppercase text-zinc-950">
+                          {resume.contact.fullName || userName || "Candidate"}
+                        </h2>
+                        <p className="text-xs text-zinc-600">
+                          {resume.contact.email} • {resume.contact.phone}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1 pt-2 text-xs text-zinc-600">
+                        <p>{coverLetter.date}</p>
+                        <p className="font-bold text-zinc-900">{coverLetter.companyName}</p>
+                        <p>{coverLetter.companyLocation}</p>
+                      </div>
+
+                      <p className="pt-2 font-bold">{coverLetter.salutation}</p>
+                      <p className="text-justify">{coverLetter.openingParagraph}</p>
+                      <p className="text-justify">{coverLetter.bodyParagraph1}</p>
+                      <p className="text-justify">{coverLetter.bodyParagraph2}</p>
+                      <p className="text-justify">{coverLetter.closingParagraph}</p>
+
+                      <div className="pt-4 space-y-4">
+                        <p>{coverLetter.signoff}</p>
+                        <p className="font-bold text-zinc-950">
+                          {resume.contact.fullName || userName || "Candidate"}
+                        </p>
                       </div>
                     </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </main>
+        </>
+      )}
 
-                    {/* DYNAMIC EMPTY STATE VS COVER LETTER CONTENT */}
-                    {(() => {
-                      const isEntirelyEmpty =
-                        !coverLetter.openingParagraph.trim() &&
-                        !coverLetter.bodyParagraph1.trim() &&
-                        !coverLetter.bodyParagraph2.trim() &&
-                        !coverLetter.closingParagraph.trim() &&
-                        !coverLetter.companyName.trim() &&
-                        !coverLetter.roleTarget.trim();
+      {/* ========================================================================= */}
+      {/* MODAL: QUICK RESUME PREVIEW */}
+      {/* ========================================================================= */}
+      {quickPreviewSlot && quickPreviewSlot.resume && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <FileText className="size-5 text-violet-600" />
+                <h3 className="text-base font-bold text-foreground">
+                  {quickPreviewSlot.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickPreviewSlot(null)}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
 
-                      if (isEntirelyEmpty) {
-                        return (
-                          <div className="py-16 text-center text-zinc-400 border border-dashed border-zinc-200 rounded-lg my-6">
-                            <p className="text-sm font-semibold text-zinc-600">Your live cover letter is ready for your input.</p>
-                            <p className="mt-1 text-xs text-zinc-500 max-w-md mx-auto">
-                              Fill in your target company, role, and paragraphs on the left, click{" "}
-                              <span className="font-bold text-violet-600">Load Template</span> to edit a standard draft, or use{" "}
-                              <span className="font-bold text-violet-600">✨ AI Generate Letter</span> to tailor it from your resume.
-                            </p>
-                          </div>
-                        );
-                      }
+            <div className="rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-xs space-y-3 font-serif">
+              <div className="border-b border-zinc-400 pb-2 text-center space-y-1">
+                <h2 className="text-lg font-bold uppercase text-zinc-950">
+                  {quickPreviewSlot.resume.candidateName || userName || "Candidate"}
+                </h2>
+                <p className="text-xs text-zinc-600">
+                  {quickPreviewSlot.title} • Slot {quickPreviewSlot.slotNumber}
+                </p>
+              </div>
 
-                      return (
-                        <>
-                          {/* Date */}
-                          <div className="pt-2 text-[10.5pt]">{coverLetter.date}</div>
+              <div className="space-y-2 text-xs text-zinc-800 leading-relaxed">
+                <div>
+                  <h4 className="font-bold border-b border-zinc-300 pb-0.5 text-zinc-900 uppercase">Skills</h4>
+                  <p className="mt-1">{quickPreviewSlot.resume.knownSkills.join(", ")}</p>
+                </div>
 
-                          {/* Recipient Address Block */}
-                          <div className="text-[10.5pt] leading-tight text-zinc-800">
-                            <p className="font-bold text-zinc-900">{coverLetter.recipientName}</p>
-                            <p>{coverLetter.recipientTitle}</p>
-                            <p>{coverLetter.companyName || "Target Company"}</p>
-                            <p>{coverLetter.companyLocation || "City, State"}</p>
-                          </div>
-
-                          {/* Salutation */}
-                          <p className="font-bold text-zinc-900">{coverLetter.salutation}</p>
-
-                          {/* Letter Body Paragraphs */}
-                          {coverLetter.openingParagraph && (
-                            <p className="text-justify text-[10pt] leading-relaxed">
-                              {coverLetter.openingParagraph}
-                            </p>
-                          )}
-
-                          {coverLetter.bodyParagraph1 && (
-                            <p className="text-justify text-[10pt] leading-relaxed">
-                              {coverLetter.bodyParagraph1}
-                            </p>
-                          )}
-
-                          {coverLetter.bodyParagraph2 && (
-                            <p className="text-justify text-[10pt] leading-relaxed">
-                              {coverLetter.bodyParagraph2}
-                            </p>
-                          )}
-
-                          {coverLetter.closingParagraph && (
-                            <p className="text-justify text-[10pt] leading-relaxed">
-                              {coverLetter.closingParagraph}
-                            </p>
-                          )}
-
-                          {/* Signoff */}
-                          <div className="pt-4 space-y-4">
-                            <p>{coverLetter.signoff}</p>
-                            <p className="font-bold pt-4 text-zinc-900">
-                              {resume.contact.fullName || userName || "Candidate"}
-                            </p>
-                          </div>
-                        </>
-                      );
-                    })()}
+                {quickPreviewSlot.resume.rawResumeData?.experience?.[0] && (
+                  <div>
+                    <h4 className="font-bold border-b border-zinc-300 pb-0.5 text-zinc-900 uppercase">Experience</h4>
+                    <p className="font-semibold text-zinc-900 mt-1">
+                      {quickPreviewSlot.resume.rawResumeData.experience[0].role} at {quickPreviewSlot.resume.rawResumeData.experience[0].company}
+                    </p>
+                    <ul className="list-disc ml-4 space-y-1 mt-1 text-[11px]">
+                      {quickPreviewSlot.resume.rawResumeData.experience[0].bullets.map((b, idx) => (
+                        <li key={idx}>{b}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
             </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setQuickPreviewSlot(null)}
+                className="rounded-xl"
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDownloadSlotPdf(quickPreviewSlot.slotId)}
+                disabled={isDownloadingPdf}
+                className="rounded-xl gap-1.5 font-bold"
+              >
+                {isDownloadingPdf ? (
+                  <Loader2 className="size-4 animate-spin text-violet-600" />
+                ) : (
+                  <Download className="size-4 text-violet-600" />
+                )}
+                <span>Download PDF</span>
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const sId = quickPreviewSlot.slotId;
+                  setQuickPreviewSlot(null);
+                  handleOpenEditorForSlot(sId);
+                }}
+                className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold gap-1.5"
+              >
+                <PenLine className="size-4" />
+                <span>Open in Builder</span>
+              </Button>
+            </div>
           </div>
         </div>
-      </main>
+      )}
 
       {/* ========================================================================= */}
-      {/* MODAL 1: REAL-WORLD AI LINE & BULLET IMPROVER */}
+      {/* MODAL: QUICK COVER LETTER PREVIEW */}
+      {/* ========================================================================= */}
+      {quickPreviewClSlot && quickPreviewClSlot.data && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Mail className="size-5 text-violet-600" />
+                <h3 className="text-base font-bold text-foreground">
+                  {quickPreviewClSlot.title}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickPreviewClSlot(null)}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-xs space-y-4 font-serif text-xs leading-relaxed">
+              <div className="border-b border-zinc-300 pb-2">
+                <h2 className="text-lg font-bold uppercase text-zinc-950">
+                  {resume.contact.fullName || userName || "Candidate"}
+                </h2>
+                <p className="text-zinc-600">{resume.contact.email} • {resume.contact.phone}</p>
+              </div>
+
+              <div>
+                <p>{quickPreviewClSlot.data.date}</p>
+                <p className="font-bold">{quickPreviewClSlot.data.companyName}</p>
+                <p>{quickPreviewClSlot.data.companyLocation}</p>
+              </div>
+
+              <p className="font-bold">{quickPreviewClSlot.data.salutation}</p>
+              <p className="text-justify">{quickPreviewClSlot.data.openingParagraph}</p>
+              <p className="text-justify">{quickPreviewClSlot.data.bodyParagraph1}</p>
+              <p className="text-justify">{quickPreviewClSlot.data.bodyParagraph2}</p>
+              <p className="text-justify">{quickPreviewClSlot.data.closingParagraph}</p>
+
+              <div>
+                <p>{quickPreviewClSlot.data.signoff}</p>
+                <p className="font-bold">{resume.contact.fullName || userName || "Candidate"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setQuickPreviewClSlot(null)}
+                className="rounded-xl"
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  downloadCoverLetterDirect(
+                    quickPreviewClSlot.data,
+                    resume.contact.fullName || userName || "Candidate",
+                    resume.contact,
+                    `${quickPreviewClSlot.title.replace(/\s+/g, "_")}_Cover_Letter.pdf`,
+                    fontFamily
+                  );
+                  showToast("Cover letter PDF downloaded!");
+                }}
+                className="rounded-xl gap-1.5 font-bold"
+              >
+                <Download className="size-4 text-violet-600" />
+                <span>Download PDF</span>
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const sId = quickPreviewClSlot.slotId;
+                  setQuickPreviewClSlot(null);
+                  handleOpenCoverLetterForSlot(sId);
+                }}
+                className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold gap-1.5"
+              >
+                <PenLine className="size-4" />
+                <span>Open in Editor</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DELETE CONFIRMATION (RESUME) */}
+      {/* ========================================================================= */}
+      {deleteConfirmSlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-3xl border border-rose-500/30 bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                <Trash2 className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-foreground">
+                  Delete Resume?
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  This will clear Slot {deleteConfirmSlot.slotNumber} ({deleteConfirmSlot.title}).
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to delete this resume? The slot will become available so you can create or import another resume.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteConfirmSlot(null)}
+                className="rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleDeleteSlot(deleteConfirmSlot.slotId)}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
+              >
+                Delete Resume
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: DELETE CONFIRMATION (COVER LETTER) */}
+      {/* ========================================================================= */}
+      {deleteConfirmClSlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-md rounded-3xl border border-rose-500/30 bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                <Trash2 className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-foreground">
+                  Delete Cover Letter?
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  This will clear Cover Letter Slot {deleteConfirmClSlot.slotNumber}.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to delete this cover letter? The slot will become available for a new letter.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteConfirmClSlot(null)}
+                className="rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleDeleteCoverLetterSlot(deleteConfirmClSlot.slotId)}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
+              >
+                Delete Cover Letter
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: IMPORT RESUME WITH SLOT SELECTOR */}
+      {/* ========================================================================= */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-xl rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Upload className="size-5 text-violet-600" />
+                <h3 className="text-base font-bold text-foreground">Import Resume</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Target Slot Selector */}
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase">
+                Choose Storage Slot (Max 3)
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {slots.map((s) => (
+                  <button
+                    key={s.slotId}
+                    type="button"
+                    onClick={() => setImportTargetSlot(s.slotId)}
+                    className={`rounded-xl border p-2.5 text-left text-xs transition-all ${
+                      importTargetSlot === s.slotId
+                        ? "border-violet-600 bg-violet-500/10 text-violet-700 dark:text-violet-300 font-bold"
+                        : "border-border hover:bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <div className="font-bold">Slot {s.slotNumber}</div>
+                    <div className="text-[10px] truncate text-muted-foreground">
+                      {s.resume ? s.title : "(Empty)"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* File Upload / Drag & Drop Area */}
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase">
+                Upload Resume File (PDF, TXT, MD, JSON)
+              </label>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleFileObject(file);
+                }}
+                className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 text-center transition-all ${
+                  isDragging
+                    ? "border-violet-600 bg-violet-500/10"
+                    : uploadedFile
+                    ? "border-violet-500/40 bg-violet-500/5"
+                    : "border-border hover:border-violet-400 bg-muted/20"
+                }`}
+              >
+                {uploadedFile ? (
+                  <div className="flex w-full items-center justify-between">
+                    <div className="flex items-center gap-2.5 text-left">
+                      <div className="rounded-xl bg-violet-600/10 p-2 text-violet-600">
+                        <FileText className="size-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground truncate max-w-[280px]">
+                          {uploadedFile.name}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {uploadedFile.isPdf ? "PDF Document" : "Text Document"} • {Math.round(uploadedFile.size / 1024)} KB
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedFile(null);
+                        setImportText("");
+                      }}
+                      className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground text-xs"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label htmlFor="resume-file-input" className="cursor-pointer space-y-1 w-full py-2">
+                    <Upload className="mx-auto size-6 text-violet-600" />
+                    <div className="text-xs font-bold text-foreground">
+                      Upload PDF or Text Resume
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      Drag & drop your resume file here, or click to browse (.pdf, .txt, .md, .json)
+                    </div>
+                  </label>
+                )}
+                <input
+                  type="file"
+                  id="resume-file-input"
+                  accept=".pdf,.docx,.txt,.md,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileObject(file);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-muted-foreground uppercase">
+                  {uploadedFile?.isPdf ? "Extracted Resume Content (Editable)" : "Or Paste Resume Content Directly"}
+                </label>
+                {isExtractingPdf && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-violet-600 font-semibold animate-pulse">
+                    <Loader2 className="size-3 animate-spin" />
+                    <span>Extracting text from PDF...</span>
+                  </div>
+                )}
+              </div>
+              <textarea
+                rows={5}
+                value={importText}
+                onChange={(e) => {
+                  setImportText(e.target.value);
+                  setCachedParsedData(null);
+                }}
+                disabled={isExtractingPdf}
+                placeholder="Paste your raw resume text, education, experience bullets, and skills here..."
+                className="w-full rounded-xl border border-border bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed disabled:opacity-60"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setUploadedFile(null);
+                  setCachedParsedData(null);
+                  setImportText("");
+                }}
+                disabled={isImporting || isExtractingPdf}
+                className="rounded-xl text-xs font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleImportSubmit}
+                disabled={
+                  (!importText.trim() && !uploadedFile?.base64 && !cachedParsedData) ||
+                  isImporting ||
+                  isExtractingPdf
+                }
+                className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
+              >
+                {isImporting || isExtractingPdf ? (
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>{isExtractingPdf ? "Reading PDF..." : "Importing to Slot..."}</span>
+                  </div>
+                ) : (
+                  `Import to Slot ${importTargetSlot.replace("slot-", "")}`
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: AI LINE & BULLET IMPROVER */}
       {/* ========================================================================= */}
       {aiBulletModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in-50">
@@ -2044,7 +3130,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
               <div className="flex items-center gap-2">
                 <Sparkles className="size-5 text-violet-500" />
                 <h3 className="text-base font-bold text-foreground">
-                  Harvard FAS AI Line Improver
+                  AI Line Improver
                 </h3>
               </div>
               <button
@@ -2066,72 +3152,9 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                 </div>
               </div>
 
-              {/* Quick Guidance Chips */}
-              <div>
-                <label className="text-[11px] font-bold text-muted-foreground uppercase block mb-1.5">
-                  Give AI Guidance or Tone Adjustment:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleCustomAiRegenerate("emphasize 20%+ quantifiable metric impact")}
-                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs hover:border-violet-400 hover:bg-muted"
-                  >
-                    📈 Add Quantified Metric (%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCustomAiRegenerate("use strong Harvard active power verbs")}
-                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs hover:border-violet-400 hover:bg-muted"
-                  >
-                    ⚡ Strong Action Verbs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCustomAiRegenerate("executive strategic leadership")}
-                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs hover:border-violet-400 hover:bg-muted"
-                  >
-                    👔 Executive Leadership
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCustomAiRegenerate("tight, concise ATS phrasing")}
-                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs hover:border-violet-400 hover:bg-muted"
-                  >
-                    ✂️ Make More Concise
-                  </button>
-                </div>
-              </div>
-
-              {/* Custom Guidance Input */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={aiBulletModal.customPrompt}
-                  onChange={(e) =>
-                    setAiBulletModal((prev) => prev && { ...prev, customPrompt: e.target.value })
-                  }
-                  placeholder="Or tell AI specifically (e.g. 'we saved $15K', 'managed team of 4', 'mention Python and SQL')..."
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                />
-                <Button
-                  type="button"
-                  onClick={() => handleCustomAiRegenerate()}
-                  disabled={aiBulletModal.isGenerating}
-                  className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs shrink-0"
-                >
-                  {aiBulletModal.isGenerating ? (
-                    <RefreshCw className="size-3.5 animate-spin" />
-                  ) : (
-                    "Regenerate"
-                  )}
-                </Button>
-              </div>
-
-              {/* Suggestions List */}
               <div className="space-y-2 pt-2">
                 <label className="text-[11px] font-bold text-muted-foreground uppercase block">
-                  Select a Harvard XYZ Revision:
+                  Select an Improved Line:
                 </label>
 
                 {aiBulletModal.suggestions.map((sug, i) => (
@@ -2156,89 +3179,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: IMPORT EXISTING RESUME */}
-      {/* ========================================================================= */}
-      {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in-50">
-          <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <Upload className="size-5 text-violet-600" />
-                <h3 className="text-base font-bold text-foreground">Import Existing Resume</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsImportModalOpen(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-muted"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Paste your existing resume text below (or upload a text/markdown file). Our parser will automatically extract your contact info, education, work experience, projects, and skills into Harvard FAS format.
-              </p>
-
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5">
-                  Paste Resume Text
-                </label>
-                <textarea
-                  rows={9}
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Paste your resume content here..."
-                  className="w-full rounded-xl border border-border bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <label className="cursor-pointer text-xs font-semibold text-violet-600 hover:underline">
-                  Upload file (.txt / .md)
-                  <input
-                    type="file"
-                    accept=".txt,.md,.json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (evt) => {
-                          const content = evt.target?.result as string;
-                          setImportText(content);
-                        };
-                        reader.readAsText(file);
-                      }
-                    }}
-                  />
-                </label>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsImportModalOpen(false)}
-                    className="rounded-xl border border-border bg-background px-4 py-2 text-xs font-semibold hover:bg-muted"
-                  >
-                    Cancel
-                  </button>
-                  <Button
-                    type="button"
-                    onClick={handleImportSubmit}
-                    disabled={!importText.trim()}
-                    className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
-                  >
-                    Parse & Populate
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 3: AI COVER LETTER GENERATOR */}
+      {/* MODAL: AI COVER LETTER GENERATOR */}
       {/* ========================================================================= */}
       {isCoverLetterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in-50">
@@ -2261,7 +3202,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
 
             <form onSubmit={handleGenerateCoverLetter} className="mt-4 space-y-3.5">
               <p className="text-xs text-muted-foreground">
-                AI reads your <strong className="text-foreground">actual resume background</strong> and drafts a Harvard-standard cover letter tailored to your target company and role.
+                AI reads your <strong className="text-foreground">actual resume background</strong> and drafts a personalized cover letter tailored to your target company and role.
               </p>
 
               <div>
@@ -2287,34 +3228,8 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                   required
                   value={clForm.targetRole}
                   onChange={(e) => setClForm({ ...clForm, targetRole: e.target.value })}
-                  placeholder="e.g. Senior Software Engineer, Financial Analyst, Product Specialist"
+                  placeholder="e.g. Senior Software Engineer, Product Designer"
                   className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                  Company Location (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={clForm.companyLocation}
-                  onChange={(e) => setClForm({ ...clForm, companyLocation: e.target.value })}
-                  placeholder="e.g. San Francisco, CA or London, UK"
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-violet-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                  Key Accomplishments or Angle to Emphasize (Optional)
-                </label>
-                <textarea
-                  rows={3}
-                  value={clForm.specificHighlights}
-                  onChange={(e) => setClForm({ ...clForm, specificHighlights: e.target.value })}
-                  placeholder="e.g. Led a team of 4, reduced query times by 40%, audited 15 client accounts..."
-                  className="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground outline-none focus:border-violet-500 leading-relaxed"
                 />
               </div>
 
@@ -2336,7 +3251,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                   ) : (
                     <Sparkles className="size-3.5" />
                   )}
-                  Generate Cover Letter
+                  Generate & Save
                 </Button>
               </div>
             </form>

@@ -1215,36 +1215,80 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
                 <input
                   type="file"
                   id="resume-file-picker"
-                  accept=".txt,.md,.json"
+                  accept=".pdf,.docx,.txt,.md,.json"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (evt) => {
-                        const content = String(evt.target?.result || "");
-                        const info: AttachedResumeInfo = {
-                          name: file.name,
-                          content,
-                          skills: [],
-                          jobDescription: attachedJobDescription || undefined,
+                      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+                      if (isPdf) {
+                        showToast(`Extracting text from "${file.name}"...`);
+                        const reader = new FileReader();
+                        reader.onload = async (evt) => {
+                          const base64 = evt.target?.result as string;
+                          try {
+                            const res = await fetch("/api/resume/parse", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ pdfBase64: base64, fileName: file.name }),
+                            });
+                            const json = await res.json();
+                            const cleanText = json.extractedText || (json.data ? JSON.stringify(json.data) : "");
+                            const extractedSkills: string[] = json.data?.skills
+                              ? [
+                                  ...(json.data.skills.technicalLanguages || "").split(","),
+                                  ...(json.data.skills.frameworksAndTools || "").split(","),
+                                ]
+                                  .map((s: string) => s.trim())
+                                  .filter(Boolean)
+                              : [];
+
+                            const info: AttachedResumeInfo = {
+                              name: file.name,
+                              content: cleanText || `[Attached Resume: ${file.name}]`,
+                              skills: extractedSkills,
+                              jobDescription: attachedJobDescription || undefined,
+                            };
+                            setAttachedResume(info);
+                            if (currentSession) {
+                              const updated = { ...currentSession, attachedResume: info };
+                              saveChatSession(updated);
+                              setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+                            }
+                            setIsResumeModalOpen(false);
+                            showToast(`Attached "${file.name}"!`);
+                          } catch {
+                            showToast(`Failed to parse "${file.name}". Please paste text directly.`);
+                          }
                         };
-                        setAttachedResume(info);
-                        if (currentSession) {
-                          const updated = { ...currentSession, attachedResume: info };
-                          saveChatSession(updated);
-                          setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-                        }
-                        setIsResumeModalOpen(false);
-                        showToast(`Attached "${file.name}"!`);
-                      };
-                      reader.readAsText(file);
+                        reader.readAsDataURL(file);
+                      } else {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          const content = String(evt.target?.result || "");
+                          const info: AttachedResumeInfo = {
+                            name: file.name,
+                            content,
+                            skills: [],
+                            jobDescription: attachedJobDescription || undefined,
+                          };
+                          setAttachedResume(info);
+                          if (currentSession) {
+                            const updated = { ...currentSession, attachedResume: info };
+                            saveChatSession(updated);
+                            setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+                          }
+                          setIsResumeModalOpen(false);
+                          showToast(`Attached "${file.name}"!`);
+                        };
+                        reader.readAsText(file);
+                      }
                     }
                   }}
                 />
                 <label htmlFor="resume-file-picker" className="cursor-pointer flex flex-col items-center gap-1">
                   <Upload className="size-5 text-violet-600" />
-                  <span className="text-xs font-semibold text-foreground">Click to upload .txt / .md resume</span>
+                  <span className="text-xs font-semibold text-foreground">Click to upload .pdf, .txt, or .md resume</span>
                 </label>
               </div>
 
