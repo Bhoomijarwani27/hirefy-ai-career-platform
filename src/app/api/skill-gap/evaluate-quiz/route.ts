@@ -13,7 +13,6 @@ export async function POST(req: Request) {
       hint,
       whatInterviewerEvaluates,
       targetRole = "Software Engineer",
-      customApiKey,
     } = body;
 
     if (!question || typeof userAnswer !== "string") {
@@ -24,7 +23,6 @@ export async function POST(req: Request) {
     }
 
     const apiKey =
-      customApiKey?.trim() ||
       process.env.GEMINI_API_KEY?.trim() ||
       process.env.OPENAI_API_KEY?.trim() ||
       process.env.GROQ_API_KEY?.trim();

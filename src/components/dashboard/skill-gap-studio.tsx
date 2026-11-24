@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Copy,
   FileText,
-  Key,
   Paperclip,
   Plus,
   Send,
@@ -42,8 +41,6 @@ import {
   getActiveChatId,
   setActiveChatId,
   createNewSession,
-  getStoredUserApiKey,
-  saveStoredUserApiKey,
 } from "@/lib/skill-gap-storage";
 import { getStoredResumes, getActiveResumeKey } from "@/lib/resume-storage";
 
@@ -70,11 +67,6 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
   const [checkedPlanItems, setCheckedPlanItems] = useState<Record<string, boolean>>({});
   const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({});
 
-  // API Key Settings Modal
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState("");
-  const [storedApiKey, setStoredApiKey] = useState("");
-
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -87,7 +79,7 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
     }, 4000);
   };
 
-  // Load Sessions and API Key on Mount
+  // Load Sessions on Mount
   useEffect(() => {
     const loaded = getChatSessions();
     setSessions(loaded);
@@ -97,9 +89,6 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
     } else if (loaded.length > 0) {
       setActiveId(loaded[0].id);
     }
-    const key = getStoredUserApiKey() || "";
-    setStoredApiKey(key);
-    setApiKeyInput(key);
   }, []);
 
   // Sync active session's attached resume and job description
@@ -278,15 +267,6 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
     showToast(jd ? "Target job description attached!" : "Job description cleared.");
   };
 
-  // Save API Key
-  const handleSaveApiKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveStoredUserApiKey(apiKeyInput);
-    setStoredApiKey(apiKeyInput.trim());
-    setIsKeyModalOpen(false);
-    showToast(apiKeyInput.trim() ? "AI API Key saved!" : "API Key cleared.");
-  };
-
   // Send Message
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = customPrompt || inputMessage.trim();
@@ -327,7 +307,6 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
           messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
           attachedResume: attachedResume ? { name: attachedResume.name, content: attachedResume.content } : undefined,
           jobDescription: attachedJobDescription || undefined,
-          customApiKey: storedApiKey || undefined,
         }),
       });
 
@@ -352,11 +331,11 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
       setSessions((prev) => prev.map((s) => (s.id === finalSession.id ? finalSession : s)));
       saveChatSession(finalSession);
     } catch (err: unknown) {
-      const errText = err instanceof Error ? err.message : "Error connecting to AI";
+      const errText = err instanceof Error ? err.message : "Error connecting to career coach";
       const errorMsg: CareerChatMessage = {
         id: `msg-${Date.now()}`,
         role: "assistant",
-        content: `⚠️ **AI Response Notice:**\n\n${errText}\n\n*Click the 🔑 **API Key** button in the top bar to connect your free Google Gemini API key.*`,
+        content: `⚠️ **Notice:**\n\n${errText}\n\nPlease try again or verify your role details.`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
@@ -984,18 +963,6 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
                   <span className="hidden sm:inline">Add Job Desc</span>
                 </Button>
               )}
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsKeyModalOpen(true)}
-                title="Configure Real AI API Key"
-                className="h-8 rounded-xl border border-border text-xs font-semibold gap-1"
-              >
-                <Key className="size-3 text-violet-600" />
-                <span className="hidden sm:inline">API Key</span>
-              </Button>
             </div>
           </div>
 
@@ -1344,78 +1311,6 @@ export function SkillGapStudio({ userName, userEmail }: SkillGapStudioProps) {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: REAL AI API KEY CONFIGURATION */}
-      {/* ========================================================================= */}
-      {isKeyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="relative w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border/70">
-              <div className="flex items-center gap-2">
-                <Key className="size-4 text-violet-600" />
-                <h3 className="text-sm font-bold text-foreground">Connect Real AI</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsKeyModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveApiKey} className="space-y-4">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Enter your <strong>Google Gemini API Key</strong> (Free from{" "}
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-violet-600 underline font-semibold"
-                >
-                  Google AI Studio
-                </a>
-                ) or an OpenAI / Groq key.
-              </p>
-
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1">
-                  API Key
-                </label>
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="Enter your API key..."
-                  className="w-full h-10 rounded-xl border border-input bg-background px-3 text-xs text-foreground outline-none focus:border-violet-500 font-mono"
-                />
-              </div>
-
-              <div className="rounded-xl border border-border/80 bg-muted/40 p-3 text-[11px] text-muted-foreground">
-                <strong>Tip:</strong> You can also set <code className="text-violet-600 font-mono">GEMINI_API_KEY</code> directly inside your project&apos;s <code className="text-violet-600 font-mono">.env</code> file.
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/70">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsKeyModalOpen(false)}
-                  className="h-9 text-xs font-semibold"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="h-9 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
-                >
-                  Save API Key
-                </Button>
-              </div>
-            </form>
           </div>
         </div>
       )}

@@ -160,9 +160,11 @@ async function callGemini(apiKey: string, rawMessages: { role: string; content: 
 
   // Default candidate models
   let candidateModels = [
-    "gemini-1.5-flash",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-exp",
+    "gemini-1.5-flash",
     "gemini-1.5-pro",
   ];
 
@@ -285,10 +287,9 @@ async function callOpenAICompatible(apiKey: string, endpoint: string, model: str
 export async function POST(req: Request) {
   try {
     const body: ChatApiRequest = await req.json();
-    const { messages = [], attachedResume, jobDescription, customApiKey } = body;
+    const { messages = [], attachedResume, jobDescription } = body;
 
     const apiKey =
-      customApiKey?.trim() ||
       process.env.GEMINI_API_KEY?.trim() ||
       process.env.OPENAI_API_KEY?.trim() ||
       process.env.GROQ_API_KEY?.trim();
@@ -365,29 +366,34 @@ End Grounded Heuristics]\n\n`;
           });
         }
       } catch (aiErr: unknown) {
-        console.error("Real AI provider error:", aiErr);
-        const errMsg = aiErr instanceof Error ? aiErr.message : "AI generation failed";
-        return NextResponse.json(
-          {
-            error: `AI Provider Error: ${errMsg}. Please verify your API key or check quota.`,
-            isApiKeyError: true,
-          },
-          { status: 502 }
-        );
+        console.warn("AI generation error, falling back to built-in career coach engine:", aiErr);
+        if (heuristicReport) {
+          return NextResponse.json({
+            success: true,
+            content: heuristicReport,
+            provider: "career-coach-engine",
+          });
+        }
+        return NextResponse.json({
+          success: true,
+          content:
+            `### 🎯 Hirefy Career Coach\n\n` +
+            `I am ready to evaluate your career readiness! Please attach your resume using the 📎 **Attach Resume** button or enter your target role details to generate your assessment.`,
+          provider: "career-coach-engine",
+        });
       }
     }
 
-    // No API key provided: Return dynamic, high-intelligence coaching report
+    // Return dynamic, high-intelligence coaching report
     const responseContent = heuristicReport || (
       `### 🚀 Your Personalized Career Coach Report\n\n` +
       `Please attach your resume using the 📎 **Attach Resume** button to generate your personalized career readiness score and actionable 7-day starter plan!\n\n` +
-      `* To enable dynamic coaching dialogue and custom questions, connect a free API key via the 🔑 **API Key** button in the top bar.`
+      `You can also type your target job role or paste a job description below to get started.`
     );
 
     return NextResponse.json({
       success: true,
       content: responseContent,
-      needsApiKey: true,
     });
   } catch (error) {
     console.error("Skill Gap Chat error:", error);

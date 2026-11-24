@@ -2,7 +2,6 @@ import { CareerChatSession } from "./skill-gap-types";
 
 const SESSIONS_STORAGE_KEY = "hirefy_career_chat_sessions_v3";
 const ACTIVE_CHAT_KEY = "hirefy_active_career_chat_id_v3";
-const USER_API_KEY_STORAGE = "hirefy_user_gemini_api_key_v1";
 
 export function createNewSession(initialTitle = "New Career Evaluation"): CareerChatSession {
   const id = `chat-${Date.now()}`;
@@ -96,27 +95,5 @@ export function setActiveChatId(id: string): void {
     window.dispatchEvent(new Event("hirefy-chat-storage-update"));
   } catch (err) {
     console.error("Failed to set active chat ID", err);
-  }
-}
-
-export function getStoredUserApiKey(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    return localStorage.getItem(USER_API_KEY_STORAGE) || "";
-  } catch {
-    return "";
-  }
-}
-
-export function saveStoredUserApiKey(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (key.trim()) {
-      localStorage.setItem(USER_API_KEY_STORAGE, key.trim());
-    } else {
-      localStorage.removeItem(USER_API_KEY_STORAGE);
-    }
-  } catch (err) {
-    console.error("Failed to save API key", err);
   }
 }
