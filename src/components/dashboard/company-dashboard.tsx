@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -108,7 +109,11 @@ export function CompanyDashboard({
   activeJobs = [],
   recentApplicants = [],
 }: CompanyDashboardProps) {
-  const greeting = getGreeting();
+  const [greeting, setGreeting] = useState("Welcome");
+
+  useEffect(() => {
+    setGreeting(getGreeting());
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -122,7 +127,10 @@ export function CompanyDashboard({
             Company Dashboard
           </p>
 
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h1
+            suppressHydrationWarning
+            className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
+          >
             {greeting}
             {userName ? `, ${userName}` : ""}
           </h1>
