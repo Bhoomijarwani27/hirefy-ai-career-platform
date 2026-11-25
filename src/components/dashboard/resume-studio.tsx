@@ -2814,6 +2814,7 @@ export function ResumeStudio({ userName, userEmail }: ResumeStudioProps) {
                 type="button"
                 variant="outline"
                 onClick={() => {
+                  if (!quickPreviewClSlot.data) return;
                   downloadCoverLetterDirect(
                     quickPreviewClSlot.data,
                     resume.contact.fullName || userName || "Candidate",

@@ -596,7 +596,7 @@ export function downloadPdfDirect(pdfBytes: Uint8Array, fileName: string): void 
   if (typeof window === "undefined") return;
 
   const cleanName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
 
   const anchor = document.createElement("a");
