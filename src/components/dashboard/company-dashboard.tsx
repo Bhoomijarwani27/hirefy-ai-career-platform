@@ -72,9 +72,9 @@ const moduleCards = [
       "hover:border-sky-300 hover:bg-sky-50/40 hover:ring-sky-500/20 focus-within:border-sky-400 focus-within:bg-sky-50/40 focus-within:ring-sky-500/20 dark:hover:border-sky-400/40 dark:hover:bg-sky-400/10 dark:focus-within:border-sky-400/50 dark:focus-within:bg-sky-400/10",
   },
   {
-    title: "Candidate Ranking",
+    title: "Application Tracking",
     description:
-      "Identify relevant candidates based on the requirements of your jobs.",
+      "Manage candidate progress",
     cta: "View Candidates",
     href: "/company/candidates",
     icon: Layers3,
