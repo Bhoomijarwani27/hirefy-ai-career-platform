@@ -2,10 +2,8 @@ import { JobSeekerDashboard } from "@/components/dashboard/job-seeker-dashboard"
 import { requireRole } from "@/lib/auth-session";
 import { APPLICATION_STATUS_LABELS } from "@/lib/application-types";
 import { formatJobDate } from "@/lib/job-validation";
-import {
-  listOpenJobsForSeeker,
-  listSeekerApplications,
-} from "@/lib/seeker-jobs-server";
+import { listSeekerApplications } from "@/lib/seeker-jobs-server";
+import { getRecommendedJobsForCandidate } from "@/lib/seeker-profile-server";
 
 export default async function SeekerDashboardPage() {
   const user = await requireRole("CANDIDATE");
@@ -28,19 +26,24 @@ export default async function SeekerDashboardPage() {
   }[] = [];
 
   try {
-    const [openJobs, apps] = await Promise.all([
-      listOpenJobsForSeeker(user.id),
+    const [{ profile, recommendations }, apps] = await Promise.all([
+      getRecommendedJobsForCandidate(user.id),
       listSeekerApplications(user.id),
     ]);
 
-    recommendedJobs = openJobs.slice(0, 4).map((job) => ({
-      id: job.id,
-      title: job.title,
-      company: job.company,
-      location: job.location,
-      skills: job.skills.slice(0, 4),
-      matchLabel: `${job.type} • ${job.mode}`,
-    }));
+    const hasProfileDetails =
+      Boolean(profile.title.trim()) || profile.skills.length > 0;
+
+    if (hasProfileDetails) {
+      recommendedJobs = recommendations.slice(0, 4).map((job) => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        skills: job.skills.slice(0, 4),
+        matchLabel: `${job.matchScore}% Match • ${job.mode}`,
+      }));
+    }
 
     recentApplications = apps.slice(0, 5).map((app) => ({
       id: app.id,

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  Calendar,
+  CheckCheck,
   ChevronDown,
   Menu,
   Search,
@@ -27,9 +29,10 @@ import { getDashboardPath } from "@/lib/auth-utils";
 import { HirefyLogo } from "@/components/logos/hirefylogo";
 
 const candidateMenuItems = [
-  { label: "My Profile", href: "/seeker/dashboard", icon: UserRound },
+  { label: "Dashboard", href: "/seeker/dashboard", icon: Layers3 },
+  { label: "My Profile", href: "/seeker/profile", icon: UserRound },
   { label: "Resume Studio", href: "/seeker/resume-studio", icon: FileText },
-  { label: "Saved Jobs", href: "/seeker/jobs", icon: BriefcaseBusiness },
+  { label: "Job Discovery", href: "/seeker/jobs", icon: BriefcaseBusiness },
   { label: "Applications", href: "/seeker/applications", icon: Layers3 },
   { label: "Settings", href: "/settings", icon: Settings },
   { label: "Help & Support", href: "/help", icon: HelpCircle },
@@ -65,6 +68,24 @@ function getInitials(name?: string | null) {
   );
 }
 
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  href: string;
+  createdAt: string;
+  type: "application" | "interview" | "status";
+}
+
+function formatNotifTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function DashboardHeader({
   userName,
   userInitials,
@@ -75,6 +96,82 @@ export function DashboardHeader({
   const { data: session } = authClient.useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [internalSearch, setInternalSearch] = useState(searchValue ?? "");
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [readIds, setReadIds] = useState<string[]>([]);
+  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+  const notifContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const readStorageKey = session?.user?.id
+    ? `hirefy_read_notifs_${session.user.id}`
+    : "hirefy_read_notifs";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(readStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setReadIds(parsed);
+      }
+    } catch {}
+  }, [readStorageKey]);
+
+  const loadNotifications = async () => {
+    if (!session?.user) return;
+    setIsLoadingNotifs(true);
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.notifications)) {
+          setNotifications(data.notifications);
+        }
+      }
+    } catch {
+      // ignore transient network errors
+    } finally {
+      setIsLoadingNotifs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      void loadNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        notifContainerRef.current &&
+        !notifContainerRef.current.contains(e.target as Node)
+      ) {
+        setNotifOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutside);
+    window.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, [notifOpen]);
+
+  const unreadCount = notifications.filter((n) => !readIds.includes(n.id)).length;
+
+  const markAsRead = (ids: string[]) => {
+    const next = Array.from(new Set([...readIds, ...ids]));
+    setReadIds(next);
+    try {
+      localStorage.setItem(readStorageKey, JSON.stringify(next));
+    } catch {}
+  };
 
   const role = (session?.user as { role?: string } | undefined)?.role;
   const isRecruiter = role === "RECRUITER";
@@ -143,15 +240,112 @@ export function DashboardHeader({
             <ThemeToggle />
           </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Notifications"
-            className="relative size-9 rounded-xl border-border text-muted-foreground hover:border-violet-300 hover:text-foreground focus-visible:ring-violet-500/30"
-          >
-            <Bell className="size-4" />
-            <span className="absolute right-2 top-2 size-2 rounded-full bg-violet-600 ring-2 ring-background" />
-          </Button>
+          <div ref={notifContainerRef} className="relative">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Notifications"
+              aria-expanded={notifOpen}
+              onClick={() => {
+                const next = !notifOpen;
+                setNotifOpen(next);
+                if (next) void loadNotifications();
+              }}
+              className="relative size-9 rounded-xl border-border text-muted-foreground hover:border-violet-300 hover:text-foreground focus-visible:ring-violet-500/30"
+            >
+              <Bell className="size-4" />
+              {unreadCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-violet-600 ring-2 ring-background" />
+              )}
+            </Button>
+
+            {notifOpen && (
+              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-xl ring-1 ring-black/5 z-50">
+                <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-foreground">
+                      Notifications
+                    </span>
+                    {unreadCount > 0 && (
+                      <span className="rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  {notifications.length > 0 && unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => markAsRead(notifications.map((n) => n.id))}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                    >
+                      <CheckCheck className="size-3.5" />
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
+                  {isLoadingNotifs && notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                      Loading notifications...
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                      You&apos;re all caught up — no notifications yet.
+                    </div>
+                  ) : (
+                    notifications.map((n) => {
+                      const isUnread = !readIds.includes(n.id);
+                      return (
+                        <Link
+                          key={n.id}
+                          href={n.href}
+                          onClick={() => {
+                            markAsRead([n.id]);
+                            setNotifOpen(false);
+                          }}
+                          className={`flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60 ${
+                            isUnread ? "bg-violet-500/5" : ""
+                          }`}
+                        >
+                          <span
+                            className={`mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg ${
+                              n.type === "interview"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                : "bg-violet-500/15 text-violet-600 dark:text-violet-400"
+                            }`}
+                          >
+                            {n.type === "interview" ? (
+                              <Calendar className="size-3.5" />
+                            ) : (
+                              <BriefcaseBusiness className="size-3.5" />
+                            )}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="truncate text-xs font-bold text-foreground">
+                                {n.title}
+                              </p>
+                              <span className="shrink-0 text-[10px] text-muted-foreground">
+                                {formatNotifTime(n.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                              {n.message}
+                            </p>
+                          </div>
+                          {isUnread && (
+                            <span className="mt-2 size-2 shrink-0 rounded-full bg-violet-600" />
+                          )}
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           <details className="group relative">
             <summary className="flex h-9 list-none cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background px-2.5 text-sm font-medium text-foreground outline-none transition-colors hover:border-violet-300 hover:bg-muted/50 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-500/20 group-open:border-violet-400 dark:hover:border-violet-400/40 [&::-webkit-details-marker]:hidden">

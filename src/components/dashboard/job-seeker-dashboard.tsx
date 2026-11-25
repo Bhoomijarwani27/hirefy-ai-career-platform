@@ -186,7 +186,7 @@ export function JobSeekerDashboard({
                 {recommendedJobs.map((job) => (
                   <Link
                     key={job.id}
-                    href={`/seeker/jobs/${job.id}`}
+                    href="/seeker/jobs"
                     className="rounded-xl border border-border bg-background p-4 outline-none transition-colors hover:border-violet-300 hover:bg-violet-50/40 focus-visible:border-violet-400 focus-visible:bg-violet-50/40 focus-visible:ring-2 focus-visible:ring-violet-500/20 active:border-violet-400 dark:hover:border-violet-400/40 dark:hover:bg-violet-400/10 dark:focus-visible:border-violet-400/50 dark:focus-visible:bg-violet-400/10"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -236,11 +236,11 @@ export function JobSeekerDashboard({
                     recommendations.
                   </h3>
                   <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                    Add your resume, skills, and target roles so Hirefy can surface
-                    relevant opportunities.
+                    Add your skills, target role, and preferred work type so
+                    Hirefy can surface relevant opportunities.
                   </p>
                   <Button asChild className="mt-5">
-                    <Link href="/seeker/resume-studio">
+                    <Link href="/seeker/profile">
                       Complete Profile
                       <ArrowRight data-icon="inline-end" className="size-4" />
                     </Link>

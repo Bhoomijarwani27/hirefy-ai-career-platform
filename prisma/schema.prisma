@@ -79,21 +79,27 @@ model Verification {
 }
 
 model CandidateProfile {
-  id                     String                  @id @default(cuid())
-  userId                 String                  @unique
-  title                  String?
-  bio                    String?                 @db.Text
-  skills                 String[]                @default([])
-  experience             String?                 @db.Text
-  education              String?                 @db.Text
-  resumeUrl              String?
-  resumeText             String?                 @db.Text
-  resumeData             Json?
-  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications           JobApplication[]
-  jobSavedBy             JobSavedCandidate[]
-  companySavedBy         CompanySavedCandidate[]
-  savedJobs              SavedJob[]
+  id                      String                  @id @default(cuid())
+  userId                  String                  @unique
+  title                   String?
+  bio                     String?                 @db.Text
+  skills                  String[]                @default([])
+  experience              String?                 @db.Text
+  education               String?                 @db.Text
+  location                String?
+  preferredWorkMode       String?
+  preferredEmploymentType String?
+  experienceYears         Int?
+  expectedSalary          String?
+  resumeUrl               String?
+  resumeText              String?                 @db.Text
+  resumeData              Json?
+  updatedAt               DateTime                @default(now()) @updatedAt
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications            JobApplication[]
+  jobSavedBy              JobSavedCandidate[]
+  companySavedBy          CompanySavedCandidate[]
+  savedJobs               SavedJob[]
 }
 
 model CompanyProfile {
