@@ -93,6 +93,7 @@ model CandidateProfile {
   applications           JobApplication[]
   jobSavedBy             JobSavedCandidate[]
   companySavedBy         CompanySavedCandidate[]
+  savedJobs              SavedJob[]
 }
 
 model CompanyProfile {
@@ -187,6 +188,7 @@ model Job {
   company         CompanyProfile      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   applications    JobApplication[]
   savedCandidates JobSavedCandidate[]
+  savedBy         SavedJob[]
 
   @@index([companyId])
   @@index([status])
@@ -301,4 +303,19 @@ model CompanySavedCandidate {
   @@index([companyId])
   @@index([candidateId])
   @@map("company_saved_candidate")
+}
+
+model SavedJob {
+  id          String   @id @default(cuid())
+  candidateId String
+  jobId       String
+  createdAt   DateTime @default(now())
+
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, jobId])
+  @@index([candidateId])
+  @@index([jobId])
+  @@map("saved_job")
 }

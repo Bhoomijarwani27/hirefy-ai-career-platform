@@ -1,5 +1,7 @@
 import { JobDiscovery } from "@/components/dashboard/job-discovery";
 import { requireRole } from "@/lib/auth-session";
+import { listOpenJobsForSeeker } from "@/lib/seeker-jobs-server";
+import type { SeekerJobDTO } from "@/lib/seeker-jobs-types";
 
 export const metadata = {
   title: "Job Discovery | Hirefy",
@@ -19,5 +21,18 @@ export default async function SeekerJobsPage() {
       .slice(0, 2)
       .toUpperCase() || "U";
 
-  return <JobDiscovery userName={userName} userInitials={userInitials} />;
+  let initialJobs: SeekerJobDTO[] = [];
+  try {
+    initialJobs = await listOpenJobsForSeeker(user.id);
+  } catch (error) {
+    console.error("Failed to load open jobs for SeekerJobsPage:", error);
+  }
+
+  return (
+    <JobDiscovery
+      userName={userName}
+      userInitials={userInitials}
+      initialJobs={initialJobs}
+    />
+  );
 }

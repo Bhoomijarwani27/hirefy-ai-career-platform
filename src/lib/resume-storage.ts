@@ -1310,11 +1310,15 @@ export function saveResumeToStore(resume: ResumeOption) {
 }
 
 export function getActiveResumeKey(): string {
-  if (typeof window === "undefined") return Object.keys(getDefaultResumes())[0];
+  if (typeof window === "undefined") return Object.keys(getDefaultResumes())[0] ?? "";
   try {
-    return localStorage.getItem(ACTIVE_RESUME_KEY) || Object.keys(getStoredResumes())[0];
+    return (
+      localStorage.getItem(ACTIVE_RESUME_KEY) ||
+      Object.keys(getStoredResumes())[0] ||
+      ""
+    );
   } catch {
-    return Object.keys(getDefaultResumes())[0];
+    return Object.keys(getDefaultResumes())[0] ?? "";
   }
 }
 
