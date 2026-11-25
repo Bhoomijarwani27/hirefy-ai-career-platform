@@ -4,6 +4,7 @@ import {
   CircleGauge,
   Orbit,
 } from "lucide-react";
+import { ResumeStudioPreview } from "@/components/landing/landing-previews";
 
 export function Resume() {
   return (
@@ -87,7 +88,7 @@ export function Resume() {
           </div>
 
           <div className="mx-auto mt-16 w-full max-w-2xl lg:mt-0">
-            <div className="h-140 rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)]" />
+            <ResumeStudioPreview />
           </div>
         </div>
       </div>

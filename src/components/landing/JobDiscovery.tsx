@@ -4,6 +4,7 @@ import {
   Bookmark,
   ClipboardList,
 } from "lucide-react";
+import { JobDiscoveryPreview } from "@/components/landing/landing-previews";
 
 export function JobDiscovery() {
   return (
@@ -11,7 +12,7 @@ export function JobDiscovery() {
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div className="order-2 mt-16 w-full max-w-2xl lg:order-1 lg:mt-0">
-            <div className="h-140 rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)]" />
+            <JobDiscoveryPreview />
           </div>
 
           <div className="order-1 lg:order-2">

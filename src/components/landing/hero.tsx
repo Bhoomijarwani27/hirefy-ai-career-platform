@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HeroWorkspacePreview } from "@/components/landing/landing-previews";
 
 export function Hero() {
    const router = useRouter();
@@ -58,7 +59,7 @@ export function Hero() {
           </div>
 
           <div className="mt-16 w-full max-w-6xl">
-            <div className="h-140 rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)]" />
+            <HeroWorkspacePreview />
           </div>
         </div>
       </div>

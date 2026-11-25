@@ -6,6 +6,7 @@ import {
   MessageSquare,
   BarChart3,
 } from "lucide-react";
+import { RecruiterPipelinePreview } from "@/components/landing/landing-previews";
 
 export function Recruiter() {
   return (
@@ -30,7 +31,7 @@ export function Recruiter() {
 
         <div className="mt-9 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="mt-16 w-full max-w-7xl lg:mt-0">
-            <div className="h-110 rounded-[2rem] border border-border/70 bg-card/75 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:shadow-[0_20px_60px_rgba(0,0,0,0.3)]" />
+            <RecruiterPipelinePreview />
           </div>
 
           <div className="flex w-full flex-col items-start gap-3">
