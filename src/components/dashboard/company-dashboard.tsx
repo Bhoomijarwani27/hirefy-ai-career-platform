@@ -35,6 +35,7 @@ type ActiveJob = {
 
 type RecentApplicant = {
   id: string;
+  jobId?: string;
   name: string;
   title: string;
   job: string;
@@ -287,7 +288,11 @@ export function CompanyDashboard({
                 {recentApplicants.map((applicant) => (
                   <Link
                     key={applicant.id}
-                    href={`/company/applicants/${applicant.id}`}
+                    href={
+                      applicant.jobId
+                        ? `/company/applicants/${applicant.jobId}/${applicant.id}`
+                        : "/company/applicants"
+                    }
                     className="rounded-xl border border-border bg-background p-4 outline-none transition-colors hover:border-sky-300 hover:bg-sky-50/40 focus-visible:border-sky-400 focus-visible:bg-sky-50/40 focus-visible:ring-2 focus-visible:ring-sky-500/20 active:border-sky-400 dark:hover:border-sky-400/40 dark:hover:bg-sky-400/10 dark:focus-visible:border-sky-400/50 dark:focus-visible:bg-sky-400/10"
                   >
                     <div className="flex items-start justify-between gap-3">

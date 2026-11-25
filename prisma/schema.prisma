@@ -27,6 +27,7 @@ model User {
   sessions         Session[]
   candidateProfile CandidateProfile?
   companyProfile   CompanyProfile?
+  stageChanges     ApplicationStageHistory[]
 
   @@map("user")
 }
@@ -78,19 +79,226 @@ model Verification {
 }
 
 model CandidateProfile {
-  id     String   @id @default(cuid())
-  userId String   @unique
-  title  String?
-  bio    String?
-  skills String[] @default([])
-  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String                  @id @default(cuid())
+  userId                 String                  @unique
+  title                  String?
+  bio                    String?                 @db.Text
+  skills                 String[]                @default([])
+  experience             String?                 @db.Text
+  education              String?                 @db.Text
+  resumeUrl              String?
+  resumeText             String?                 @db.Text
+  resumeData             Json?
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications           JobApplication[]
+  jobSavedBy             JobSavedCandidate[]
+  companySavedBy         CompanySavedCandidate[]
 }
 
 model CompanyProfile {
-  id          String  @id @default(cuid())
-  userId      String  @unique
-  companyName String?
-  website     String?
-  industry    String?
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String                  @id @default(cuid())
+  userId                 String                  @unique
+  companyName            String?
+  logoUrl                String?
+  website                String?
+  industry               String?
+  companySize            String?
+  foundedYear            Int?
+  officialEmail          String?
+  contactNumber          String?
+  address                String?
+  city                   String?
+  state                  String?
+  country                String?
+  postalCode             String?
+  about                  String?                 @db.Text
+  missionVision          String?                 @db.Text
+  culture                String?                 @db.Text
+  benefitsEnvironment    String?                 @db.Text
+  updatedAt              DateTime                @default(now()) @updatedAt
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs                   Job[]
+  jobSavedCandidates     JobSavedCandidate[]
+  companySavedCandidates CompanySavedCandidate[]
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+  DRAFT
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+}
+
+enum WorkMode {
+  ON_SITE
+  REMOTE
+  HYBRID
+}
+
+enum ExperienceLevel {
+  ENTRY
+  MID
+  SENIOR
+  LEAD
+  EXECUTIVE
+}
+
+enum ApplicationStatus {
+  APPLIED
+  REVIEWING
+  SHORTLISTED
+  INTERVIEW
+  SELECTED
+  OFFER
+  REJECTED
+}
+
+model Job {
+  id                      String           @id @default(cuid())
+  companyId               String
+  title                   String
+  department              String
+  description             String           @db.Text
+  openings                Int              @default(1)
+  employmentType          EmploymentType   @default(FULL_TIME)
+  workMode                WorkMode         @default(ON_SITE)
+  location                String
+  experienceLevel         ExperienceLevel  @default(MID)
+  minExperience           Int              @default(0)
+  maxExperience           Int?
+  salaryRange             String?
+  requiredSkills          String[]         @default([])
+  qualifications          String           @db.Text
+  responsibilities        String           @db.Text
+  preferredSkills         String[]         @default([])
+  deadline                DateTime?
+  applicationInstructions String?          @db.Text
+  status                  JobStatus        @default(DRAFT)
+  postedAt                DateTime?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  company         CompanyProfile      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications    JobApplication[]
+  savedCandidates JobSavedCandidate[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("job")
+}
+
+enum InterviewMode {
+  ONLINE
+  IN_PERSON
+}
+
+enum InterviewResult {
+  PENDING
+  PASSED
+  FAILED
+  ON_HOLD
+}
+
+model JobApplication {
+  id                String            @id @default(cuid())
+  jobId             String
+  candidateId       String
+  status            ApplicationStatus @default(APPLIED)
+  coverLetter       String?           @db.Text
+  resumeUrl         String?
+  resumeText        String?           @db.Text
+  resumeData        Json?
+  experienceSummary String?           @db.Text
+  educationSummary  String?           @db.Text
+  recruiterNotes    String?           @db.Text
+  selectedAt        DateTime?
+  offerStatus       String?
+  rejectionReason   String?           @db.Text
+  appliedAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  job             Job                       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate       CandidateProfile          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  stageHistory    ApplicationStageHistory[]
+  interviewRounds InterviewRound[]
+
+  @@unique([jobId, candidateId])
+  @@index([jobId])
+  @@index([candidateId])
+  @@map("job_application")
+}
+
+model ApplicationStageHistory {
+  id            String             @id @default(cuid())
+  applicationId String
+  fromStatus    ApplicationStatus?
+  toStatus      ApplicationStatus
+  note          String?            @db.Text
+  changedById   String
+  changedAt     DateTime           @default(now())
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedBy   User           @relation(fields: [changedById], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("application_stage_history")
+}
+
+model InterviewRound {
+  id                    String          @id @default(cuid())
+  applicationId         String
+  roundName             String
+  scheduledAt           DateTime
+  mode                  InterviewMode   @default(ONLINE)
+  meetingLinkOrLocation String
+  interviewerName       String
+  notes                 String?         @db.Text
+  feedback              String?         @db.Text
+  result                InterviewResult @default(PENDING)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("interview_round")
+}
+
+model JobSavedCandidate {
+  id          String   @id @default(cuid())
+  companyId   String
+  jobId       String
+  candidateId String
+  createdAt   DateTime @default(now())
+
+  company   CompanyProfile   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, candidateId])
+  @@index([companyId])
+  @@index([jobId])
+  @@index([candidateId])
+  @@map("job_saved_candidate")
+}
+
+model CompanySavedCandidate {
+  id          String   @id @default(cuid())
+  companyId   String
+  candidateId String
+  createdAt   DateTime @default(now())
+
+  company   CompanyProfile   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, candidateId])
+  @@index([companyId])
+  @@index([candidateId])
+  @@map("company_saved_candidate")
 }
